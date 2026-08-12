@@ -1,0 +1,12 @@
+# Dependencias, artefactos de compilación y archivos temporales
+node_modules/
+release/
+tmp/
+dist/
+
+# Registros locales
+*.log
+
+# Metadatos generados por macOS
+.DS_Store
+._*
