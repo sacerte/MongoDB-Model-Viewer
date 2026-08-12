@@ -67,6 +67,18 @@ Para generar una descripción, utiliza el icono de IA junto a un campo o el bot�
 
 > Seguridad: la configuración se guarda localmente en la aplicación. No incluyas tu clave de API en el repositorio, capturas de pantalla ni archivos compartidos. Si utilizas otro proveedor, debe ofrecer un endpoint compatible con el formato de chat completions de OpenAI.
 
+## Interoperabilidad de archivos
+
+Los proyectos se pueden guardar y compartir como archivos de modelo. Desde **JSON Schema → Exportar**, selecciona el formato correspondiente.
+
+| Formato | Compatibilidad | Uso |
+| --- | --- | --- |
+| `.mdm` | MongoDB Compass Data Modeling Diagram | Exporta el proyecto en formato compatible con MongoDB Compass. Un archivo `.mdm` creado en MongoDBModeler se puede abrir en Compass, y los diagramas `.mdm` exportados desde Compass se pueden importar en MongoDBModeler. |
+| `.dmm` | Moom Modeler | Importación y exportación bidireccional de modelos de Moom Modeler, incluidos colecciones, campos, índices, relaciones y hojas de diagrama cuando estén presentes. |
+| `.json` | JSON Schema / definiciones JSON | Importa esquemas de validación JSON y exporta definiciones de colecciones, esquemas e índices. |
+
+Para importar, abre la opción **Importar** y selecciona un archivo `.mdm`, `.dmm` o `.json`. Para exportar un proyecto completo, abre **JSON Schema → Exportar** y elige **Archivo de proyecto (.mdm)** o **Archivo Moom Modeler (.dmm)**.
+
 ## Compilar la aplicación
 
 Los artefactos generados se guardan en `release/`. Esta carpeta no se versiona: los instaladores se publican como adjuntos de GitHub Releases.
