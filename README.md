@@ -4,6 +4,20 @@
 
 Está construida con React, Vite y Electron.
 
+## Galería
+
+| Gestor de proyectos | Diagram Studio |
+| --- | --- |
+| ![Gestor de proyectos](docs/images/project-manager.png) | ![Diagram Studio](docs/images/diagram-studio.png) |
+
+| Gestión de índices | Diccionario de datos |
+| --- | --- |
+| ![Gestión de índices](docs/images/indexes.png) | ![Diccionario de datos](docs/images/data-dictionary.png) |
+
+| Exportación de esquemas | Importación de proyectos y esquemas |
+| --- | --- |
+| ![Opciones de exportación](docs/images/json-schema-export.png) | ![Opciones de importación](docs/images/json-schema-import.png) |
+
 ## Requisitos
 
 - Node.js 20 o superior (se recomienda la versión LTS).
@@ -27,6 +41,31 @@ Para abrir la aplicación de escritorio en modo desarrollo:
 ```bash
 npm run desktop:dev
 ```
+
+## Asistente de IA
+
+La aplicación puede usar un modelo de IA para redactar documentación a partir de la estructura del modelo MongoDB y del contexto que indiques. Sus funciones principales son:
+
+- Generar descripciones breves para campos desde el **Diccionario de datos**.
+- Generar la documentación del modelo, colecciones e índices desde la pestaña de documentación cuando esté habilitada.
+- Usar un **contexto de proyecto** (por ejemplo, “facturación en España” o “historias clínicas”) para adaptar las descripciones al dominio de negocio.
+
+### Configuración
+
+1. Abre **Admin / Configuración** desde el icono de engranaje de la aplicación.
+2. En la sección **IA**, introduce una clave de API compatible con OpenRouter.
+3. Mantén la URL predeterminada o introduce la URL del endpoint de completions de tu proveedor:
+
+   ```text
+   https://openrouter.ai/api/v1/chat/completions
+   ```
+
+4. Elige el modelo predeterminado. La aplicación propone `openai/gpt-oss-120b:free` y también permite añadir identificadores de modelos personalizados.
+5. Guarda los cambios. En el Diccionario de datos o al crear/editar un proyecto, rellena **Contexto para IA** y selecciona el modelo que quieras usar.
+
+Para generar una descripción, utiliza el icono de IA junto a un campo o el botón **Generar todo con IA**. Revisa siempre el texto generado antes de usarlo como documentación definitiva.
+
+> Seguridad: la configuración se guarda localmente en la aplicación. No incluyas tu clave de API en el repositorio, capturas de pantalla ni archivos compartidos. Si utilizas otro proveedor, debe ofrecer un endpoint compatible con el formato de chat completions de OpenAI.
 
 ## Compilar la aplicación
 
