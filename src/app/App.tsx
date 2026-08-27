@@ -1,7 +1,7 @@
 import { SyntheticEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Tabs, Tab, Box, IconButton, Tooltip, Button, CssBaseline } from '@mui/material';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { Database, FileJson, Network, BookOpen, Upload, Download, FolderOpen, Save, CircleHelp, History, Settings } from 'lucide-react';
+import { Database, FileJson, Network, BookOpen, Upload, Download, FolderOpen, Save, CircleHelp, History, Settings, X, LogOut, Users, ShieldCheck } from 'lucide-react';
 import MongoModelBuilder, { Model } from './components/MongoModelBuilder';
 import JSONSchemaViewer from './components/JSONSchemaViewer';
 import DiagramStudio, { CopiedAttributesDraft, CopiedCollectionDraft } from './components/DiagramStudio';
@@ -10,6 +10,9 @@ import ProjectManager from './components/ProjectManager';
 import ExportDialog from './components/ExportDialog';
 import ImportDialog from './components/ImportDialog';
 import TutorialDialog from './components/TutorialDialog';
+import LoginScreen from './components/LoginScreen';
+import CollaborationDialog from './components/CollaborationDialog';
+import UserPermissionsDialog from './components/UserPermissionsDialog';
 import AdminSettings from './components/AdminSettings';
 import ProjectDocumentation from './components/ProjectDocumentation';
 import { buildDefaultDiagramSheets, createProjectBundle, DiagramSheet, normalizeDiagramSheets, ProjectData, Relation } from './utils/projectBundle';
@@ -22,6 +25,9 @@ import {
 } from './utils/photoCollections';
 import { AppLanguage, AppLanguageContext } from './i18n';
 import { loadAppSettings, saveAppSettings } from './utils/appSettings';
+import { isSupabaseConfigured, supabase } from './utils/supabase';
+import { publishProject } from './utils/collaboration';
+import { defaultPermissions, getMyPermissions } from './utils/appPermissions';
 
 const APP_LANGUAGE_STORAGE_KEY = 'mongodb-model-viewer-language';
 const COPIED_ATTRIBUTES_STORAGE_KEY = 'mongodb-model-viewer-copied-attributes';
@@ -44,6 +50,19 @@ interface OpenProjectSession {
   aiContext: string;
   aiModel: string;
   undoStack: UndoSnapshot[];
+  savedFingerprint: string;
+}
+
+const APP_VERSION = '1.0.7';
+
+function getProjectFingerprint(project: Pick<OpenProjectSession, 'models' | 'relations' | 'diagramSheets' | 'aiContext' | 'aiModel'>) {
+  return JSON.stringify({
+    models: project.models,
+    relations: project.relations,
+    diagramSheets: project.diagramSheets,
+    aiContext: project.aiContext,
+    aiModel: project.aiModel
+  });
 }
 
 function MongoDBMark({ className = 'h-6 w-6' }: { className?: string }) {
@@ -81,6 +100,10 @@ export default function App() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showTutorialDialog, setShowTutorialDialog] = useState(false);
+  const [showCollaborationDialog, setShowCollaborationDialog] = useState(false);
+  const [showUserPermissions, setShowUserPermissions] = useState(false);
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
+  const [globalPermissions, setGlobalPermissions] = useState(defaultPermissions);
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [appSettings, setAppSettings] = useState(loadAppSettings());
   const [aiContext, setAiContext] = useState('');
@@ -98,6 +121,45 @@ export default function App() {
     const savedLanguage = localStorage.getItem(APP_LANGUAGE_STORAGE_KEY);
     return savedLanguage === 'en' ? 'en' : 'es';
   });
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [authenticated, setAuthenticated] = useState(!isSupabaseConfigured);
+
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.auth.getSession().then(({ data }) => {
+      setAuthenticated(Boolean(data.session));
+      if (data.session) void getMyPermissions().then((p) => { setIsGlobalAdmin(p.is_admin); setGlobalPermissions(p.permissions); });
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(Boolean(session));
+      if (session) void getMyPermissions().then((p) => { setIsGlobalAdmin(p.is_admin); setGlobalPermissions(p.permissions); });
+      setAuthReady(true);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const sharedProjectId = currentProject?.sharedProjectId;
+    if (!supabase || !sharedProjectId) return;
+    const channel = supabase
+      .channel(`shared-project-${sharedProjectId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shared_projects', filter: `id=eq.${sharedProjectId}` }, (payload) => {
+        const remoteProject = (payload.new as { data?: ProjectData }).data;
+        if (!remoteProject) return;
+        const nextProject = { ...remoteProject, sharedProjectId, collaborationRole: currentProject.collaborationRole };
+        modelsRef.current = nextProject.models || [];
+        relationsRef.current = nextProject.relations || [];
+        diagramSheetsRef.current = normalizeDiagramSheets(nextProject.diagramSheets, (nextProject.models || []).map((model) => model.id), nextProject.photoSheetConfig);
+        currentProjectRef.current = nextProject;
+        setCurrentProject(nextProject);
+        setModels(nextProject.models || []);
+        setRelations(nextProject.relations || []);
+        setDiagramSheets(diagramSheetsRef.current);
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [currentProject?.sharedProjectId]);
 
   const muiTheme = useMemo(
     () =>
@@ -292,7 +354,14 @@ export default function App() {
       activeDiagramSheetId: nextSheets[0]?.id || buildDefaultDiagramSheets([], project.photoSheetConfig)[0].id,
       aiContext: project.aiContext || '',
       aiModel: project.aiModel || 'openai/gpt-oss-120b:free',
-      undoStack: []
+      undoStack: [],
+      savedFingerprint: getProjectFingerprint({
+        models: nextModels,
+        relations: nextRelations,
+        diagramSheets: nextSheets,
+        aiContext: project.aiContext || '',
+        aiModel: project.aiModel || 'openai/gpt-oss-120b:free'
+      })
     };
   };
 
@@ -786,8 +855,33 @@ export default function App() {
     }
 
     void upsertLocalProject(updatedProject);
+    if (updatedProject.sharedProjectId) {
+      void publishProject(updatedProject).catch((error) => console.warn('No se pudo sincronizar el proyecto compartido:', error));
+    }
     currentProjectRef.current = updatedProject;
     setCurrentProject(updatedProject);
+    setOpenProjectSessions((sessions) =>
+      sessions.map((session) =>
+        session.sessionId === activeProjectSessionId
+          ? {
+              ...session,
+              project: updatedProject,
+              models: deepClone(modelsRef.current),
+              relations: deepClone(relationsRef.current),
+              diagramSheets: deepClone(diagramSheetsRef.current),
+              aiContext: aiContext.trim(),
+              aiModel,
+              savedFingerprint: getProjectFingerprint({
+                models: modelsRef.current,
+                relations: relationsRef.current,
+                diagramSheets: diagramSheetsRef.current,
+                aiContext: aiContext.trim(),
+                aiModel
+              })
+            }
+          : session
+      )
+    );
     if (showAlert) {
       alert(copy.savedProject);
     }
@@ -925,6 +1019,82 @@ export default function App() {
     hydrateProjectSession(targetSession);
   };
 
+  const isSessionDirty = (session: OpenProjectSession) =>
+    getProjectFingerprint(session) !== session.savedFingerprint;
+
+  const persistProjectSession = (session: OpenProjectSession) => {
+    const project: ProjectDataWithSource = {
+      ...session.project,
+      models: session.models,
+      relations: session.relations,
+      diagramSheets: session.diagramSheets,
+      aiContext: session.aiContext.trim(),
+      aiModel: session.aiModel,
+      updated_at: new Date().toISOString()
+    };
+    const desktopApp = (window as any)?.desktopApp;
+    if (project.sourceFilePath && desktopApp?.writeTextFile) {
+      const bundle = createProjectBundle(project.name, project.models, project.relations || [], project.diagramSheets, project);
+      void desktopApp.writeTextFile(project.sourceFilePath, JSON.stringify(bundle, null, 2));
+    }
+    void upsertLocalProject(project);
+  };
+
+  const handleCloseProjectSession = (sessionId: string) => {
+    const session = openProjectSessions.find((item) => item.sessionId === sessionId);
+    if (!session) return;
+    if (isSessionDirty(session)) {
+      const shouldSave = window.confirm(
+        appLanguage === 'es'
+          ? `Hay cambios sin guardar en “${session.project.name}”. Pulsa Aceptar para guardarlos antes de cerrar la pestaña, o Cancelar para descartarlos.`
+          : `There are unsaved changes in “${session.project.name}”. Press OK to save before closing this tab, or Cancel to discard them.`
+      );
+      if (shouldSave) persistProjectSession(session);
+    }
+    const remaining = openProjectSessions.filter((item) => item.sessionId !== sessionId);
+    setOpenProjectSessions(remaining);
+    if (sessionId === activeProjectSessionId) {
+      const nextSession = remaining[remaining.length - 1] || null;
+      setActiveProjectSessionId(nextSession?.sessionId || null);
+      if (nextSession) hydrateProjectSession(nextSession);
+      else {
+        setCurrentProject(null);
+        setModels([]);
+        setRelations([]);
+        setDiagramSheets(buildDefaultDiagramSheets());
+        setShowProjectManager(true);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const desktopApp = (window as any)?.desktopApp;
+    if (!desktopApp?.onBeforeClose) return;
+    return desktopApp.onBeforeClose(() => {
+      const unsaved = openProjectSessions.filter(isSessionDirty);
+      if (unsaved.length === 0) return true;
+      const shouldSave = window.confirm(
+        appLanguage === 'es'
+          ? `Hay ${unsaved.length} proyecto(s) con cambios sin guardar. Pulsa Aceptar para guardarlos y cerrar; Cancelar para descartar los cambios y cerrar.`
+          : `There are ${unsaved.length} project(s) with unsaved changes. Press OK to save and close; Cancel to discard changes and close.`
+      );
+      if (shouldSave) unsaved.forEach(persistProjectSession);
+      return true;
+    });
+  }, [appLanguage, openProjectSessions]);
+
+
+  if (!authReady) {
+    return <div className="grid h-full place-items-center bg-slate-900 text-slate-100">Cargando acceso seguro…</div>;
+  }
+
+  if (isSupabaseConfigured && !authenticated) {
+    return <LoginScreen onAuthenticated={() => setAuthenticated(true)} />;
+  }
+
+  const collaborationRole = currentProject?.collaborationRole;
+  const canEditProject = collaborationRole !== 'viewer';
+  const isProjectAdmin = !collaborationRole || collaborationRole === 'owner';
 
   return (
     <AppLanguageContext.Provider value={{ language: appLanguage, setLanguage: setAppLanguage }}>
@@ -955,6 +1125,7 @@ export default function App() {
             </div>
 
             <div className="flex gap-2 text-slate-100">
+              <span className="self-center text-xs font-medium text-slate-300">v{APP_VERSION} · Web</span>
               <Tooltip title={copy.helpTooltip}>
                 <IconButton onClick={() => setShowTutorialDialog(true)} size="small" sx={{ color: '#f8fafc' }}>
                   <CircleHelp className="w-5 h-5" />
@@ -996,36 +1167,51 @@ export default function App() {
                   </Button>
                 </div>
               </Tooltip>
-              <Tooltip title={copy.newProject}>
+              {isSupabaseConfigured && globalPermissions.collaboration && (
+                <Tooltip title={appLanguage === 'es' ? 'Colaborar' : 'Collaborate'}>
+                  <IconButton onClick={() => setShowCollaborationDialog(true)} size="small" sx={{ color: '#f8fafc' }}>
+                    <Users className="w-5 h-5" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {isProjectAdmin && globalPermissions.projects && <Tooltip title={copy.newProject}>
                 <IconButton onClick={() => setShowProjectManager(true)} size="small" sx={{ color: '#f8fafc' }}>
                   <FolderOpen className="w-5 h-5" />
                 </IconButton>
-              </Tooltip>
-              <Tooltip title={copy.saveProject}>
+              </Tooltip>}
+              {canEditProject && globalPermissions.editContent && <Tooltip title={copy.saveProject}>
                 <IconButton onClick={handleSaveProject} size="small" sx={{ color: '#f8fafc' }}>
                   <Save className="w-5 h-5" />
                 </IconButton>
-              </Tooltip>
-              <Tooltip title={copy.saveNewVersion}>
+              </Tooltip>}
+              {canEditProject && globalPermissions.editContent && <Tooltip title={copy.saveNewVersion}>
                 <IconButton onClick={handleSaveNewVersion} size="small" sx={{ color: '#f8fafc' }}>
                   <History className="w-5 h-5" />
                 </IconButton>
-              </Tooltip>
-              <Tooltip title={copy.importJson}>
-                <IconButton onClick={() => setShowAdminSettings(true)} size="small" sx={{ color: '#f8fafc' }}>
-                  <Settings className="w-5 h-5" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={copy.importJson}>
+              </Tooltip>}
+              {canEditProject && globalPermissions.importExport && <Tooltip title={copy.importJson}>
                 <IconButton onClick={() => setShowImportDialog(true)} size="small" sx={{ color: '#f8fafc' }}>
                   <Upload className="w-5 h-5" />
                 </IconButton>
-              </Tooltip>
-              <Tooltip title={copy.exportLabel}>
+              </Tooltip>}
+              {globalPermissions.importExport && <Tooltip title={copy.exportLabel}>
                 <IconButton onClick={() => setShowExportDialog(true)} size="small" sx={{ color: '#f8fafc' }}>
                   <Download className="w-5 h-5" />
                 </IconButton>
-              </Tooltip>
+              </Tooltip>}
+              {isGlobalAdmin && <Tooltip title="Usuarios y permisos"><IconButton onClick={() => setShowUserPermissions(true)} size="small" sx={{ color: '#facc15' }}><ShieldCheck className="w-5 h-5" /></IconButton></Tooltip>}
+              {isProjectAdmin && globalPermissions.settings && <Tooltip title={copy.importJson}>
+                <IconButton onClick={() => setShowAdminSettings(true)} size="small" sx={{ color: '#f8fafc' }}>
+                  <Settings className="w-5 h-5" />
+                </IconButton>
+              </Tooltip>}
+              {isSupabaseConfigured && (
+                <Tooltip title={appLanguage === 'es' ? 'Cerrar sesión' : 'Sign out'}>
+                  <IconButton onClick={() => void supabase?.auth.signOut()} size="small" sx={{ color: '#f8fafc' }} aria-label={appLanguage === 'es' ? 'Cerrar sesión' : 'Sign out'}>
+                    <LogOut className="w-5 h-5" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </div>
           </div>
 
@@ -1047,7 +1233,23 @@ export default function App() {
                 <Tab
                   key={session.sessionId}
                   value={session.sessionId}
-                  label={session.project.name}
+                  label={
+                    <span className="flex items-center gap-1">
+                      <span>{session.project.name}{isSessionDirty(session) ? ' *' : ''}</span>
+                      <span
+                        role="button"
+                        aria-label={appLanguage === 'es' ? `Cerrar ${session.project.name}` : `Close ${session.project.name}`}
+                        className="ml-1 inline-flex rounded p-0.5 hover:bg-white/15"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCloseProjectSession(session.sessionId);
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </span>
+                    </span>
+                  }
                 />
               ))}
             </Tabs>
@@ -1055,26 +1257,30 @@ export default function App() {
 
           <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
             <Tab
+              sx={{ display: globalPermissions.diagram ? undefined : 'none' }}
               icon={<Network className="w-4 h-4" />}
               label={copy.tabDiagram}
               iconPosition="start"
             />
             <Tab
+              sx={{ display: globalPermissions.indexes ? undefined : 'none' }}
               icon={<Database className="w-4 h-4" />}
               label={copy.tabIndexes}
               iconPosition="start"
             />
             <Tab
+              sx={{ display: globalPermissions.dictionary ? undefined : 'none' }}
               icon={<BookOpen className="w-4 h-4" />}
               label={copy.tabDictionary}
               iconPosition="start"
             />
             <Tab
+              sx={{ display: globalPermissions.schema ? undefined : 'none' }}
               icon={<FileJson className="w-4 h-4" />}
               label={copy.tabSchema}
               iconPosition="start"
             />
-            {appSettings.enableDocumentation && (
+            {appSettings.enableDocumentation && globalPermissions.documentation && (
               <Tab
                 icon={<BookOpen className="w-4 h-4" />}
                 label={copy.tabDocumentation}
@@ -1085,7 +1291,7 @@ export default function App() {
         </div>
 
         <Box className="flex-1 overflow-hidden">
-          {activeTab === 0 && (
+          {activeTab === 0 && globalPermissions.diagram && (
             <DiagramStudio
               models={models}
               relations={relations}
@@ -1093,13 +1299,13 @@ export default function App() {
               activeDiagramSheetId={activeDiagramSheetId}
               projectName={currentProject?.name || copy.untitled}
               photoSheetConfig={currentProject?.photoSheetConfig}
-              onAddModel={handleAddModel}
-              onUpdateModel={handleUpdateModel}
-              onDeleteModel={handleDeleteModel}
-              onAddPhotoCollection={handleAddPhotoCollectionForModel}
-              onRemovePhotoCollection={handleRemovePhotoCollectionForModel}
-              onUpdateRelations={handleUpdateRelations}
-              onUpdateDiagramSheets={handleUpdateDiagramSheets}
+              onAddModel={canEditProject ? handleAddModel : () => {}}
+              onUpdateModel={canEditProject ? handleUpdateModel : () => {}}
+              onDeleteModel={canEditProject ? handleDeleteModel : () => {}}
+              onAddPhotoCollection={canEditProject ? handleAddPhotoCollectionForModel : () => {}}
+              onRemovePhotoCollection={canEditProject ? handleRemovePhotoCollectionForModel : () => {}}
+              onUpdateRelations={canEditProject ? handleUpdateRelations : () => {}}
+              onUpdateDiagramSheets={canEditProject ? handleUpdateDiagramSheets : () => {}}
               onChangeActiveDiagramSheetId={setActiveDiagramSheetId}
               canUndo={undoStack.length > 0}
               onUndo={handleUndo}
@@ -1109,27 +1315,27 @@ export default function App() {
               onCopiedCollectionChange={setCopiedCollection}
             />
           )}
-          {activeTab === 1 && (
+          {activeTab === 1 && globalPermissions.indexes && (
             <MongoModelBuilder
               models={models}
-              onUpdateModel={handleUpdateModel}
+              onUpdateModel={canEditProject ? handleUpdateModel : () => {}}
             />
           )}
-          {activeTab === 2 && (
+          {activeTab === 2 && globalPermissions.dictionary && (
             <DataDictionary
               models={models}
               projectName={currentProject?.name || copy.untitled}
               aiContext={aiContext}
               aiModel={aiModel}
-              onUpdateAiContext={setAiContext}
-              onUpdateAiModel={setAiModel}
-              onUpdateModel={handleUpdateModel}
+              onUpdateAiContext={canEditProject ? setAiContext : () => {}}
+              onUpdateAiModel={canEditProject ? setAiModel : () => {}}
+              onUpdateModel={canEditProject ? handleUpdateModel : () => {}}
               aiApiKey={appSettings.aiApiKey}
               aiBaseUrl={appSettings.aiBaseUrl}
             />
           )}
-          {activeTab === 3 && <JSONSchemaViewer models={models} />}
-          {activeTab === 4 && appSettings.enableDocumentation && (
+          {activeTab === 3 && globalPermissions.schema && <JSONSchemaViewer models={models} />}
+          {activeTab === 4 && globalPermissions.documentation && appSettings.enableDocumentation && (
             <ProjectDocumentation
               projectName={currentProject?.name || copy.untitled}
               models={models}
@@ -1138,16 +1344,13 @@ export default function App() {
               aiModel={aiModel}
               aiApiKey={appSettings.aiApiKey}
               aiBaseUrl={appSettings.aiBaseUrl}
-              onUpdateDocumentation={(nextDocumentation) =>
+              onUpdateDocumentation={canEditProject ? (nextDocumentation) => {
                 setCurrentProject((previousProject) =>
                   previousProject
-                    ? {
-                        ...previousProject,
-                        documentation: nextDocumentation
-                      }
+                    ? { ...previousProject, documentation: nextDocumentation }
                     : previousProject
-                )
-              }
+                );
+              } : () => {}}
             />
           )}
         </Box>
@@ -1174,7 +1377,23 @@ export default function App() {
             projectName={currentProject?.name || copy.untitled}
             language={appLanguage}
             onChangeLanguage={setAppLanguage}
+            appVersion={APP_VERSION}
           />
+
+          <CollaborationDialog
+            open={showCollaborationDialog}
+            onClose={() => setShowCollaborationDialog(false)}
+            project={currentProject ? { ...currentProject, models, relations, diagramSheets } : null}
+            onProjectShared={(sharedProjectId) => {
+              if (currentProject) setCurrentProject({ ...currentProject, sharedProjectId, collaborationRole: 'owner' });
+            }}
+            onProjectJoined={(project) => {
+              setShowProjectManager(false);
+              handleImportProject(project);
+            }}
+          />
+
+          <UserPermissionsDialog open={showUserPermissions} onClose={() => setShowUserPermissions(false)} />
 
           <ExportDialog
             open={showExportDialog}
@@ -1192,7 +1411,7 @@ export default function App() {
             onImport={handleImportModels}
             onImportProject={handleImportProject}
           />
-          <AdminSettings
+          {isProjectAdmin && <AdminSettings
             open={showAdminSettings}
             settings={appSettings}
             onClose={() => setShowAdminSettings(false)}
@@ -1216,7 +1435,7 @@ export default function App() {
               }
               setShowAdminSettings(false);
             }}
-          />
+          />}
         </Suspense>
 
         
@@ -1262,9 +1481,3 @@ function writeJsonToStorage(storageKey: string, value: unknown) {
 
   window.localStorage.setItem(storageKey, JSON.stringify(value));
 }
-
-
-
-
-
-

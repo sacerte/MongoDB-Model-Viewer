@@ -10,6 +10,7 @@ const FIRST_RUN_ZOOM_FILE = 'first-run-zoom-initialized.json';
 const LOCAL_PROJECTS_FILE = 'local-projects.json';
 let pendingOpenFilePath = null;
 let mainWindowRef = null;
+let allowWindowClose = false;
 
 function getLocalProjectsFilePath() {
   return path.join(app.getPath('userData'), LOCAL_PROJECTS_FILE);
@@ -148,6 +149,7 @@ ipcMain.handle('storage:readLocalProjects', async () => {
 });
 
 function createMainWindow(initialOpenFilePath = null) {
+  allowWindowClose = false;
   const mainWindow = new BrowserWindow({
     title: 'MongoDBModeler',
     width: 1440,
@@ -176,6 +178,11 @@ function createMainWindow(initialOpenFilePath = null) {
       const [nextWindow] = BrowserWindow.getAllWindows().filter((window) => window !== mainWindow && !window.isDestroyed());
       mainWindowRef = nextWindow || null;
     }
+  });
+  mainWindow.on('close', (event) => {
+    if (allowWindowClose) return;
+    event.preventDefault();
+    mainWindow.webContents.send('app:before-close');
   });
 
   if (VITE_DEV_SERVER_URL) {
@@ -310,6 +317,13 @@ ipcMain.handle('app:writeTextFile', async (_event, filePath, content) => {
   } catch (error) {
     return { ok: false, error: error?.message || 'Could not write file' };
   }
+});
+
+ipcMain.on('app:close-response', (event, canClose) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isDestroyed() || !canClose) return;
+  allowWindowClose = true;
+  window.close();
 });
 
 const singleInstanceLock = app.requestSingleInstanceLock();

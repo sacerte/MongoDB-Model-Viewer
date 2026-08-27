@@ -18,6 +18,7 @@ interface Props {
   projectName?: string;
   language: AppLanguage;
   onChangeLanguage: (language: AppLanguage) => void;
+  appVersion: string;
 }
 
 interface TutorialSection {
@@ -212,11 +213,23 @@ const TUTORIAL_COPY: Record<
   }
 };
 
-export default function TutorialDialog({ open, onClose, projectName, language, onChangeLanguage }: Props) {
+export default function TutorialDialog({ open, onClose, projectName, language, onChangeLanguage, appVersion }: Props) {
   const copy = TUTORIAL_COPY[language];
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth scroll="paper">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      scroll="paper"
+      sx={{
+        '& .MuiDialog-paper': { backgroundColor: '#202938', color: '#f8fafc' },
+        '& .MuiDialogTitle-root, & .MuiDialogContent-root, & .MuiDialogActions-root': { color: '#f8fafc' },
+        '& .MuiChip-root': { backgroundColor: 'rgba(34, 211, 238, 0.14)', color: '#cffafe', border: '1px solid rgba(34, 211, 238, 0.26)' },
+        '& .MuiButton-root': { color: '#e2e8f0' }
+      }}
+    >
       <DialogTitle>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -224,8 +237,9 @@ export default function TutorialDialog({ open, onClose, projectName, language, o
               <BookOpen className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
             </div>
             <div>
-              <div className="text-xl font-semibold">{copy.title}</div>
-              <div className="mt-1 text-sm text-muted-foreground">{copy.subtitle(projectName)}</div>
+              <div className="text-xl font-semibold text-slate-50">{copy.title}</div>
+              <div className="mt-1 text-sm text-slate-300">{copy.subtitle(projectName)}</div>
+              <div className="mt-1 text-xs font-medium text-cyan-200">MongoDB Modeler · v{appVersion}</div>
             </div>
           </div>
 
@@ -250,9 +264,9 @@ export default function TutorialDialog({ open, onClose, projectName, language, o
 
       <DialogContent dividers>
         <div className="space-y-5 py-2">
-          <div className="rounded-3xl border border-border bg-muted/30 p-4">
-            <div className="text-sm font-semibold text-foreground">{copy.quickStartTitle}</div>
-            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <div className="rounded-3xl border border-slate-600/70 bg-slate-900/60 p-4">
+            <div className="text-sm font-semibold text-slate-50">{copy.quickStartTitle}</div>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
               {copy.quickStartSteps.map((step, index) => (
                 <div key={`${language}-quick-${index}`}>
                   {index + 1}. {step}
@@ -271,21 +285,21 @@ export default function TutorialDialog({ open, onClose, projectName, language, o
               const SectionIcon = section.icon;
 
               return (
-                <section key={`${language}-${section.title}`} className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+                <section key={`${language}-${section.title}`} className="rounded-3xl border border-slate-600/70 bg-slate-800/75 p-4 shadow-sm">
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-muted/60">
-                      <SectionIcon className="h-5 w-5 text-foreground" />
+                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/15">
+                      <SectionIcon className="h-5 w-5 text-cyan-200" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-base font-semibold text-foreground">{section.title}</div>
-                      <div className="mt-1 text-sm text-muted-foreground">{section.description}</div>
+                      <div className="text-base font-semibold text-slate-50">{section.title}</div>
+                      <div className="mt-1 text-sm leading-6 text-slate-200">{section.description}</div>
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                  <div className="mt-4 space-y-2 text-sm leading-6 text-slate-200">
                     {section.bullets.map((bullet, index) => (
                       <div key={`${language}-${section.title}-${index}`} className="flex gap-2">
-                        <span className="font-semibold text-foreground">{index + 1}.</span>
+                        <span className="font-semibold text-cyan-200">{index + 1}.</span>
                         <span>{bullet}</span>
                       </div>
                     ))}
@@ -295,8 +309,8 @@ export default function TutorialDialog({ open, onClose, projectName, language, o
             })}
           </div>
 
-          <div className="rounded-3xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            <div className="font-semibold text-foreground">{copy.toolbarTitle}</div>
+          <div className="rounded-3xl border border-dashed border-slate-500/80 bg-slate-900/45 p-4 text-sm leading-6 text-slate-200">
+            <div className="font-semibold text-slate-50">{copy.toolbarTitle}</div>
             <div className="mt-3 grid gap-2">
               <div className="flex items-center gap-2">
                 <FolderOpen className="h-4 w-4" />

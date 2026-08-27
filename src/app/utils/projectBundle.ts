@@ -42,6 +42,8 @@ export interface ProjectData {
   created_at?: string;
   updated_at?: string;
   owner_id?: string;
+  sharedProjectId?: string;
+  collaborationRole?: 'owner' | 'editor' | 'viewer';
   version?: number;
   versionHistory?: Array<{
     version: number;

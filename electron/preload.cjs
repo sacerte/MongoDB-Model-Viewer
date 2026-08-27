@@ -10,6 +10,15 @@ contextBridge.exposeInMainWorld('desktopApp', {
   },
   getPendingOpenFile: () => ipcRenderer.invoke('app:getPendingOpenFile'),
   clearPendingOpenFile: (filePath) => ipcRenderer.invoke('app:clearPendingOpenFile', filePath),
+  onBeforeClose: (handler) => {
+    if (typeof handler !== 'function') return () => {};
+    const listener = async () => {
+      const canClose = await handler();
+      ipcRenderer.send('app:close-response', Boolean(canClose));
+    };
+    ipcRenderer.on('app:before-close', listener);
+    return () => ipcRenderer.removeListener('app:before-close', listener);
+  },
   readTextFile: (filePath) => ipcRenderer.invoke('app:readTextFile', filePath),
   writeTextFile: (filePath, content) => ipcRenderer.invoke('app:writeTextFile', filePath, content),
   storage: {
