@@ -25,7 +25,7 @@ import {
 } from './utils/photoCollections';
 import { AppLanguage, AppLanguageContext } from './i18n';
 import { loadAppSettings, saveAppSettings } from './utils/appSettings';
-import { isSupabaseConfigured, supabase } from './utils/supabase';
+import { isDesktopApp, isSupabaseConfigured, supabase } from './utils/supabase';
 import { publishProject } from './utils/collaboration';
 import { defaultPermissions, getMyPermissions } from './utils/appPermissions';
 
@@ -103,7 +103,9 @@ export default function App() {
   const [showCollaborationDialog, setShowCollaborationDialog] = useState(false);
   const [showUserPermissions, setShowUserPermissions] = useState(false);
   const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
-  const [globalPermissions, setGlobalPermissions] = useState(defaultPermissions);
+  const [globalPermissions, setGlobalPermissions] = useState(() =>
+    isDesktopApp ? { ...defaultPermissions, collaboration: true, editContent: true, settings: true } : defaultPermissions
+  );
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [appSettings, setAppSettings] = useState(loadAppSettings());
   const [aiContext, setAiContext] = useState('');
@@ -1125,7 +1127,7 @@ export default function App() {
             </div>
 
             <div className="flex gap-2 text-slate-100">
-              <span className="self-center text-xs font-medium text-slate-300">v{APP_VERSION} · Web</span>
+              <span className="self-center text-xs font-medium text-slate-300">v{APP_VERSION} · {isDesktopApp ? 'Desktop' : 'Web'}</span>
               <Tooltip title={copy.helpTooltip}>
                 <IconButton onClick={() => setShowTutorialDialog(true)} size="small" sx={{ color: '#f8fafc' }}>
                   <CircleHelp className="w-5 h-5" />

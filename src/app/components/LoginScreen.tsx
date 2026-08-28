@@ -16,7 +16,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState(''); const captchaRef = useRef<HTMLDivElement>(null); const siteKey = window.MONGODB_MODELER_CONFIG?.turnstileSiteKey;
+  const [captchaToken, setCaptchaToken] = useState(''); const captchaRef = useRef<HTMLDivElement>(null); const siteKey = window.desktopApp ? undefined : window.MONGODB_MODELER_CONFIG?.turnstileSiteKey;
   useEffect(() => { if (!siteKey || !captchaRef.current) return; const s=document.createElement('script');s.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';s.onload=()=>window.turnstile?.render(captchaRef.current!,{sitekey:siteKey,callback:setCaptchaToken});document.head.appendChild(s); },[siteKey]);
 
   const submit = async (event: React.FormEvent) => {

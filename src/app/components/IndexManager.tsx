@@ -13,7 +13,7 @@ import {
   Select,
   TextField
 } from '@mui/material';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Copy, Plus, Trash2, X } from 'lucide-react';
 import { useAppLanguage } from '../i18n';
 
 interface Props {
@@ -1168,8 +1168,17 @@ export default function IndexManager({ model, onUpdateModel }: Props) {
                 </div>
 
                 <div className="rounded-xl border border-slate-500/20 bg-slate-900/25 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
-                    {copy.generatedDefinition}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+                      {copy.generatedDefinition}
+                    </div>
+                    <Button
+                      size="small"
+                      startIcon={<Copy className="h-3.5 w-3.5" />}
+                      onClick={() => void navigator.clipboard.writeText(JSON.stringify(buildAtlasSearchDefinition(searchDynamicMappings, searchFieldConfigs), null, 2))}
+                    >
+                      {language === 'es' ? 'Copiar' : 'Copy'}
+                    </Button>
                   </div>
                   <div className="mt-2 text-xs text-slate-300">
                     {copy.selectedAttributes(searchFieldConfigs.length, searchDynamicMappings)}
@@ -1553,7 +1562,8 @@ function insertAtlasSearchField(
   target: Record<string, unknown>,
   path: string,
   fieldConfig: SearchFieldConfig,
-  allFields: SearchFieldConfig[]
+  allFields: SearchFieldConfig[],
+  applyVariantScope = true
 ) {
   const segments = path.split('.');
   let currentTarget = target;
@@ -1605,7 +1615,7 @@ function insertAtlasSearchField(
     let documentContainer: { fields?: Record<string, unknown>; type?: string } | undefined;
     if (Array.isArray(rawNode)) {
       const preferredType =
-        fieldConfig.variantScope === 'embeddedDocuments' || fieldConfig.variantScope === 'document'
+        applyVariantScope && index === 0 && (fieldConfig.variantScope === 'embeddedDocuments' || fieldConfig.variantScope === 'document')
           ? fieldConfig.variantScope
           : 'document';
       documentContainer = rawNode.find((node) => node.type === preferredType && node.fields);
@@ -1615,8 +1625,16 @@ function insertAtlasSearchField(
       }
     } else {
       documentContainer = rawNode;
-      if (!documentContainer || !documentContainer.fields) {
-        documentContainer = { type: 'document', fields: {} };
+      const preferredType =
+        applyVariantScope && index === 0 && (fieldConfig.variantScope === 'embeddedDocuments' || fieldConfig.variantScope === 'document')
+          ? fieldConfig.variantScope
+          : 'document';
+      if (documentContainer?.fields && documentContainer.type && documentContainer.type !== preferredType && fieldConfig.variantScope) {
+        const variantContainer = { type: preferredType, fields: {} as Record<string, unknown> };
+        currentTarget[segment] = [variantContainer, documentContainer];
+        documentContainer = variantContainer;
+      } else if (!documentContainer || !documentContainer.fields) {
+        documentContainer = { type: preferredType, fields: {} };
         currentTarget[segment] = documentContainer;
       }
     }
@@ -1706,7 +1724,7 @@ function collectAtlasSearchFieldConfigsRecursive(
             variant.fields,
             nextPath,
             accumulator,
-            mappingType
+            parentVariantScope || mappingType
           );
         }
       });
@@ -1755,7 +1773,7 @@ function collectAtlasSearchFieldConfigsRecursive(
           fieldDefinition.fields,
           nextPath,
           accumulator,
-          isContainer ? mappingType : parentVariantScope
+          parentVariantScope || (isContainer ? mappingType : undefined)
         );
       }
     }
@@ -1818,7 +1836,7 @@ function buildSubFieldMappings(
     )
     .forEach((f) => {
       const relativePath = f.fieldPath.slice(prefix.length);
-      insertAtlasSearchField(nested, relativePath, f, allFields);
+      insertAtlasSearchField(nested, relativePath, f, allFields, false);
     });
   return nested;
 }

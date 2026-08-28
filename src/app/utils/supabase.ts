@@ -13,8 +13,9 @@ declare global {
 const config = window.MONGODB_MODELER_CONFIG;
 const url = config?.supabaseUrl?.trim();
 const key = config?.supabaseAnonKey?.trim();
+export const isDesktopApp = Boolean(window.desktopApp);
 
-export const isSupabaseConfigured = Boolean(url && key);
+export const isSupabaseConfigured = !isDesktopApp && Boolean(url && key);
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(url!, key!, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;

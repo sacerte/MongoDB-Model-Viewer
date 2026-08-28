@@ -26,7 +26,7 @@
     "desktop:dist:win": "npm run build && npm exec electron-builder -- --win portable --x64",
     "desktop:dist:win:fast": "npm exec electron-builder -- --win portable --x64",
     "desktop:dist:win:installer": "npm run build && npm exec electron-builder -- --win nsis --x64",
-    "desktop:dist:win:installer:deepin": "PATH='/opt/deepin-wine11-stable/bin:$PATH' npm run build && PATH='/opt/deepin-wine11-stable/bin:$PATH' npm exec electron-builder -- --win nsis --x64",
+    "desktop:dist:win:installer:deepin": "PATH=\"/opt/deepin-wine11-stable/bin:$PATH\" npm run build && PATH=\"/opt/deepin-wine11-stable/bin:$PATH\" npm exec electron-builder -- --win nsis --x64",
     "desktop:dist:win:installer:fast": "npm exec electron-builder -- --win nsis --x64",
     "desktop:dist:win:installer:clean": "npm run desktop:clean && npm run build && npm exec electron-builder -- --win nsis --x64 --publish never",
     "desktop:dist:linux": "npm run build && npm exec electron-builder -- --linux AppImage deb --arm64 --x64",

@@ -101,8 +101,17 @@ export default function JSONSchemaViewer({ models }: Props) {
                         <div className="space-y-2">
                           {model.indexes.map((index) => (
                             <div key={index.id}>
-                              <div className="mb-1 text-xs text-slate-300">
-                                {index.name} ({index.type})
+                              <div className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-300">
+                                <span>{index.name} ({index.type})</span>
+                                <Tooltip title={language === 'es' ? 'Copiar definición del índice' : 'Copy index definition'}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => void navigator.clipboard.writeText(JSON.stringify(generateIndexExportPayload(model, index), null, 2))}
+                                    sx={{ color: '#fcd34d' }}
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                  </IconButton>
+                                </Tooltip>
                               </div>
                               <div className="overflow-x-auto rounded-xl border border-slate-500/20 bg-slate-950/75 p-4 font-mono text-sm text-amber-300 shadow-sm">
                                 <pre>{JSON.stringify(generateIndexExportPayload(model, index), null, 2)}</pre>
