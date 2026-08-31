@@ -53,7 +53,7 @@ interface OpenProjectSession {
   savedFingerprint: string;
 }
 
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 
 function getProjectFingerprint(project: Pick<OpenProjectSession, 'models' | 'relations' | 'diagramSheets' | 'aiContext' | 'aiModel'>) {
   return JSON.stringify({

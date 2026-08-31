@@ -47,6 +47,10 @@ interface SearchFieldConfig {
   fieldPath: string;
   mappingType: SearchMappingType;
   variantScope?: 'all' | 'document' | 'embeddedDocuments';
+  /** Path of the container whose variant this field belongs to. */
+  variantScopePath?: string;
+  /** Complete ancestry of document/embeddedDocuments alternatives. */
+  variantTrail?: Array<{ path: string; type: 'document' | 'embeddedDocuments' }>;
   tokenization?: 'edgeGram' | 'rightEdgeGram' | 'nGram';
   analyzer?: string;
   minGrams?: number;
@@ -1563,12 +1567,16 @@ function insertAtlasSearchField(
   path: string,
   fieldConfig: SearchFieldConfig,
   allFields: SearchFieldConfig[],
-  applyVariantScope = true
+  applyVariantScope = true,
+  contextPath = ''
 ) {
   const segments = path.split('.');
   let currentTarget = target;
 
   segments.forEach((segment, index) => {
+    const currentPath = contextPath
+      ? `${contextPath}.${segments.slice(0, index + 1).join('.')}`
+      : segments.slice(0, index + 1).join('.');
     const isLeaf = index === segments.length - 1;
 
     if (isLeaf) {
@@ -1613,11 +1621,9 @@ function insertAtlasSearchField(
       | undefined;
 
     let documentContainer: { fields?: Record<string, unknown>; type?: string } | undefined;
+    const explicitVariantType = getExplicitContainerType(fieldConfig, currentPath, applyVariantScope);
+    let preferredType = explicitVariantType || 'document';
     if (Array.isArray(rawNode)) {
-      const preferredType =
-        applyVariantScope && index === 0 && (fieldConfig.variantScope === 'embeddedDocuments' || fieldConfig.variantScope === 'document')
-          ? fieldConfig.variantScope
-          : 'document';
       documentContainer = rawNode.find((node) => node.type === preferredType && node.fields);
       if (!documentContainer) {
         documentContainer = { type: preferredType, fields: {} };
@@ -1625,11 +1631,13 @@ function insertAtlasSearchField(
       }
     } else {
       documentContainer = rawNode;
-      const preferredType =
-        applyVariantScope && index === 0 && (fieldConfig.variantScope === 'embeddedDocuments' || fieldConfig.variantScope === 'document')
-          ? fieldConfig.variantScope
-          : 'document';
-      if (documentContainer?.fields && documentContainer.type && documentContainer.type !== preferredType && fieldConfig.variantScope) {
+      if (
+        !explicitVariantType &&
+        (documentContainer?.type === 'document' || documentContainer?.type === 'embeddedDocuments')
+      ) {
+        preferredType = documentContainer.type;
+      }
+      if (documentContainer?.fields && documentContainer.type && documentContainer.type !== preferredType) {
         const variantContainer = { type: preferredType, fields: {} as Record<string, unknown> };
         currentTarget[segment] = [variantContainer, documentContainer];
         documentContainer = variantContainer;
@@ -1671,14 +1679,15 @@ function collectAtlasSearchFieldConfigs(
   prefix: string,
   accumulator: SearchFieldConfig[]
 ) {
-  collectAtlasSearchFieldConfigsRecursive(fieldsObject, prefix, accumulator, undefined);
+  collectAtlasSearchFieldConfigsRecursive(fieldsObject, prefix, accumulator, undefined, []);
 }
 
 function collectAtlasSearchFieldConfigsRecursive(
   fieldsObject: Record<string, unknown>,
   prefix: string,
   accumulator: SearchFieldConfig[],
-  parentVariantScope?: 'document' | 'embeddedDocuments'
+  parentVariantScope?: { type: 'document' | 'embeddedDocuments'; path: string },
+  variantTrail: Array<{ path: string; type: 'document' | 'embeddedDocuments' }> = []
 ) {
   Object.entries(fieldsObject).forEach(([key, value]) => {
     const nextPath = prefix ? `${prefix}.${key}` : key;
@@ -1698,7 +1707,9 @@ function collectAtlasSearchFieldConfigsRecursive(
             id: `${nextPath}-${mappingType}-${Math.random()}`,
             fieldPath: nextPath,
             mappingType,
-            variantScope: mappingType,
+            variantScope: parentVariantScope?.type,
+            variantScopePath: parentVariantScope?.path,
+            variantTrail,
             tokenization: variant.tokenization,
             analyzer: variant.analyzer,
             minGrams: variant.minGrams,
@@ -1710,7 +1721,9 @@ function collectAtlasSearchFieldConfigsRecursive(
             id: `${nextPath}-${mappingType}-${Math.random()}`,
             fieldPath: nextPath,
             mappingType,
-            variantScope: parentVariantScope,
+            variantScope: parentVariantScope?.type,
+            variantScopePath: parentVariantScope?.path,
+            variantTrail,
             tokenization: variant.tokenization,
             analyzer: variant.analyzer,
             minGrams: variant.minGrams,
@@ -1724,7 +1737,10 @@ function collectAtlasSearchFieldConfigsRecursive(
             variant.fields,
             nextPath,
             accumulator,
-            parentVariantScope || mappingType
+            // Variants in an array define a new branch. Their descendants must
+            // remain scoped to this exact container.
+            { type: mappingType, path: nextPath },
+            [...variantTrail, { type: mappingType, path: nextPath }]
           );
         }
       });
@@ -1745,20 +1761,26 @@ function collectAtlasSearchFieldConfigsRecursive(
           id: `${nextPath}-${mappingType}-${Math.random()}`,
           fieldPath: nextPath,
           mappingType,
-          variantScope: parentVariantScope,
+          variantScope: parentVariantScope?.type,
+          variantScopePath: parentVariantScope?.path,
+          variantTrail,
           tokenization: fieldDefinition.tokenization,
           analyzer: fieldDefinition.analyzer,
           minGrams: fieldDefinition.minGrams,
           maxGrams: fieldDefinition.maxGrams,
           representation: fieldDefinition.representation
         });
-      } else if (hasSubFields && !parentVariantScope) {
-        // Top-level container with sub-fields - register it so it's not lost
+      } else if (hasSubFields && (!parentVariantScope || mappingType === 'embeddedDocuments')) {
+        // Keep top-level containers, and always keep embeddedDocuments even
+        // when they are nested in another variant: the embedded container is
+        // semantic data, not just a structural path.
         accumulator.push({
           id: `${nextPath}-${mappingType}-${Math.random()}`,
           fieldPath: nextPath,
           mappingType,
-          variantScope: undefined,
+          variantScope: parentVariantScope?.type,
+          variantScopePath: parentVariantScope?.path,
+          variantTrail,
           tokenization: fieldDefinition.tokenization,
           analyzer: fieldDefinition.analyzer,
           minGrams: fieldDefinition.minGrams,
@@ -1773,7 +1795,16 @@ function collectAtlasSearchFieldConfigsRecursive(
           fieldDefinition.fields,
           nextPath,
           accumulator,
-          parentVariantScope || (isContainer ? mappingType : undefined)
+          // A regular nested document is only structural: it must not discard
+          // the scope inherited from an outer document/embeddedDocuments
+          // variant. embeddedDocuments, on the other hand, starts a new
+          // independently queryable nested scope.
+          mappingType === 'embeddedDocuments'
+            ? { type: mappingType, path: nextPath }
+            : parentVariantScope,
+          mappingType === 'embeddedDocuments'
+            ? [...variantTrail, { type: mappingType, path: nextPath }]
+            : variantTrail
         );
       }
     }
@@ -1820,25 +1851,47 @@ function buildSubFieldMappings(
       .map((f) => f.mappingType)
   );
   const hasBothParentVariants = parentVariants.has('document') && parentVariants.has('embeddedDocuments');
-  const hasVariantSpecificChildren = allFields.some(
-    (f) => f.fieldPath.startsWith(prefix) && f.variantScope && f.variantScope !== 'all'
-  );
-
   allFields
     .filter(
       (f) =>
         f.fieldPath.startsWith(prefix) &&
-        (hasBothParentVariants
-          ? f.variantScope === 'all' || f.variantScope === variantType
-          : hasVariantSpecificChildren
-            ? f.variantScope === variantType
-            : !f.variantScope || f.variantScope === 'all' || f.variantScope === variantType)
+        (getVariantTypeAtPath(f, parentPath) === undefined || getVariantTypeAtPath(f, parentPath) === variantType) &&
+        (!hasBothParentVariants || getVariantTypeAtPath(f, parentPath) !== undefined || f.variantScope === 'all')
     )
     .forEach((f) => {
       const relativePath = f.fieldPath.slice(prefix.length);
-      insertAtlasSearchField(nested, relativePath, f, allFields, false);
+      insertAtlasSearchField(nested, relativePath, f, allFields, true, parentPath);
     });
   return nested;
+}
+
+function getVariantTypeAtPath(fieldConfig: SearchFieldConfig, path: string) {
+  return fieldConfig.variantTrail?.find((variant) => variant.path === path)?.type;
+}
+
+function getPreferredContainerType(
+  fieldConfig: SearchFieldConfig,
+  path: string,
+  applyVariantScope: boolean
+): 'document' | 'embeddedDocuments' {
+  return getExplicitContainerType(fieldConfig, path, applyVariantScope) || 'document';
+}
+
+function getExplicitContainerType(
+  fieldConfig: SearchFieldConfig,
+  path: string,
+  applyVariantScope: boolean
+): 'document' | 'embeddedDocuments' | undefined {
+  const branchType = getVariantTypeAtPath(fieldConfig, path);
+  if (branchType) return branchType;
+  if (
+    applyVariantScope &&
+    fieldConfig.variantScopePath === path &&
+    (fieldConfig.variantScope === 'document' || fieldConfig.variantScope === 'embeddedDocuments')
+  ) {
+    return fieldConfig.variantScope;
+  }
+  return undefined;
 }
 
 function areSearchEntriesEqual(left: unknown, right: unknown) {

@@ -48,7 +48,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         <Box sx={{ p: { xs: 3, sm: 4 }, borderBottom: '1px solid rgba(148,163,184,.16)', background: 'linear-gradient(120deg, rgba(20,184,166,.12), rgba(37,99,235,.13))' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
             <Box sx={{ display: 'grid', placeItems: 'center', width: 52, height: 52, borderRadius: 3, bgcolor: 'rgba(16,185,129,.13)', border: '1px solid rgba(52,211,153,.24)' }}><MongoDBMark className="h-8 w-8" /></Box>
-            <Box><Typography variant="h5" fontWeight={750} letterSpacing="-.03em">MongoDB Modeler</Typography><Typography variant="body2" sx={{ mt: .25, color: '#94a3b8' }}>v1.0.7 · Web colaborativa</Typography></Box>
+            <Box><Typography variant="h5" fontWeight={750} letterSpacing="-.03em">MongoDB Modeler</Typography><Typography variant="body2" sx={{ mt: .25, color: '#94a3b8' }}>v1.0.8 · Web colaborativa</Typography></Box>
           </Box>
         </Box>
         <Box sx={{ p: { xs: 3, sm: 4 } }}>
