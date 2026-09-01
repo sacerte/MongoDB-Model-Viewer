@@ -173,7 +173,15 @@ Project file:
             field.arrayType = undefined;
           }
         } else {
-          field.type = 'Mixed';
+          const mappedTypes = concreteBsonTypes
+            .map(convertBsonTypeToMongoType)
+            .filter((type) => type !== 'Mixed');
+          if (mappedTypes.length === concreteBsonTypes.length) {
+            field.type = 'Mixed';
+            field.bsonTypes = Array.from(new Set(mappedTypes));
+          } else {
+            field.type = 'Mixed';
+          }
         }
       } else {
         if (hasObjectProperties && normalizedBsonType !== 'array') {

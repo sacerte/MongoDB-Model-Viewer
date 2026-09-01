@@ -17,6 +17,7 @@ import AdminSettings from './components/AdminSettings';
 import ProjectDocumentation from './components/ProjectDocumentation';
 import { buildDefaultDiagramSheets, createProjectBundle, DiagramSheet, normalizeDiagramSheets, ProjectData, Relation } from './utils/projectBundle';
 import { upsertLocalProject } from './utils/localProjects';
+import { APP_VERSION } from './utils/appVersion';
 import {
   buildDefaultPhotoSheetConfig,
   buildPhotoCollectionId,
@@ -52,8 +53,6 @@ interface OpenProjectSession {
   undoStack: UndoSnapshot[];
   savedFingerprint: string;
 }
-
-const APP_VERSION = '1.0.8';
 
 function getProjectFingerprint(project: Pick<OpenProjectSession, 'models' | 'relations' | 'diagramSheets' | 'aiContext' | 'aiModel'>) {
   return JSON.stringify({

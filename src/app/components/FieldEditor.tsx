@@ -199,8 +199,9 @@ export default function FieldEditor({
   const canShowReference = !isArrayField && effectiveType === 'ObjectId' && !isIdField;
   const canShowArrayReference = isArrayField && effectiveType === 'ObjectId';
   const canUseEnum = effectiveType !== 'Document' && effectiveType !== 'Array' && effectiveType !== 'Mixed';
+  const canUseMultipleBsonTypes = !isArrayField && field.type === 'Mixed';
   const hasEnum = Boolean(field.enum && field.enum.length > 0);
-  const hasCompactDetails = canShowReference || canShowArrayReference || canAddNested || hasNestedChildren || hasEnum;
+  const hasCompactDetails = canShowReference || canShowArrayReference || canAddNested || hasNestedChildren || hasEnum || canUseMultipleBsonTypes;
   const hasEnumOnlyDetails = hasEnum && !canShowReference && !canShowArrayReference && !canAddNested && !hasNestedChildren;
   const canExpand = hasNestedChildren;
   const isSearchMatch = Boolean(searchQuery && (field.name || '').toLowerCase().includes(searchQuery.toLowerCase()));
@@ -218,7 +219,11 @@ export default function FieldEditor({
       (normalizedSelectedPath === normalizedCurrentPath ||
         normalizedSelectedPath.startsWith(`${normalizedCurrentPath}.`)));
   const defaultTypeValue = isArrayField ? field.arrayType || 'String' : field.type;
+  const typeDisplayValue = field.type === 'Mixed' && field.bsonTypes?.length
+    ? `Mixed (${field.bsonTypes.join(' | ')})`
+    : getMongoTypeOptionLabel(defaultTypeValue);
   const defaultTypeOptions = isIdField ? NON_ARRAY_TYPES : MONGO_TYPES;
+  const multiTypeOptions = NON_ARRAY_TYPES.filter((type) => !['Enum', 'Document', 'Mixed', 'Null'].includes(type));
 
   useEffect(() => {
     if (forceExpand) {
@@ -322,6 +327,7 @@ export default function FieldEditor({
 
     const updates: Partial<Field> = {
       type: nextType,
+      bsonTypes: nextType === 'Mixed' ? field.bsonTypes : undefined,
       isArray: false,
       nestedFields: nextType === 'Document' ? field.nestedFields || [] : [],
       ref: nextType === 'ObjectId' ? field.arrayRef || field.ref || '' : undefined,
@@ -464,6 +470,7 @@ export default function FieldEditor({
               <Select
                 value={defaultTypeValue}
                 onChange={(e) => handleFieldTypeChange(e.target.value)}
+                renderValue={() => typeDisplayValue.toLowerCase()}
                 sx={{ ...COMPACT_FIELD_SX, position: 'relative', zIndex: 2, pointerEvents: 'auto' }}
                 MenuProps={COMPACT_MENU_PROPS}
               >
@@ -603,6 +610,25 @@ export default function FieldEditor({
           {isExpanded && hasCompactDetails && (
             <div className="mt-1 rounded-md border border-white/10 bg-slate-950/45 p-1.5">
               <div className="flex flex-wrap items-center gap-1">
+                {canUseMultipleBsonTypes && (
+                  <FormControl size="small" className="min-w-[160px] flex-1">
+                    <InputLabel sx={compactLabelSx}>Tipos BSON</InputLabel>
+                    <Select
+                      multiple
+                      value={field.bsonTypes || [field.type]}
+                      label="Tipos BSON"
+                      renderValue={(selected) => (selected as string[]).join(', ')}
+                      onChange={(e) => {
+                        const bsonTypes = e.target.value as string[];
+                        onUpdate({ bsonTypes: bsonTypes.length ? bsonTypes : undefined, type: 'Mixed' });
+                      }}
+                      sx={COMPACT_FIELD_SX}
+                      MenuProps={COMPACT_MENU_PROPS}
+                    >
+                      {multiTypeOptions.map((type) => <MenuItem key={type} value={type}>{getMongoTypeOptionLabel(type)}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                )}
                 {canShowReference && (
                   <FormControl size="small" className="min-w-[118px] flex-1">
                     <InputLabel sx={compactLabelSx}>{copy.reference}</InputLabel>
@@ -727,6 +753,7 @@ export default function FieldEditor({
               value={defaultTypeValue}
               label={copy.type}
               onChange={(e) => handleFieldTypeChange(e.target.value)}
+              renderValue={() => typeDisplayValue}
             >
               {defaultTypeOptions.map((type) => (
                 <MenuItem key={type} value={type}>
@@ -735,6 +762,24 @@ export default function FieldEditor({
               ))}
             </Select>
           </FormControl>
+
+          {!isArrayField && field.type === 'Mixed' && (
+            <FormControl size="small" className="w-48">
+              <InputLabel>Tipos BSON</InputLabel>
+              <Select
+                multiple
+                value={field.bsonTypes || [field.type]}
+                label="Tipos BSON"
+                renderValue={(selected) => (selected as string[]).join(', ')}
+                onChange={(e) => {
+                  const selected = (e.target.value as string[]).filter(Boolean);
+                  onUpdate({ bsonTypes: selected.length ? selected : undefined, type: 'Mixed' });
+                }}
+              >
+                {multiTypeOptions.map((type) => <MenuItem key={type} value={type}>{getMongoTypeOptionLabel(type)}</MenuItem>)}
+              </Select>
+            </FormControl>
+          )}
 
           {isArrayField && (
             <FormControl size="small" className="w-40">

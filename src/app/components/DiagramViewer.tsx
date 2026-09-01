@@ -1910,6 +1910,10 @@ function getDiagramFieldTypeLabel(field: Field) {
   const effectiveType = isArrayField ? field.arrayType || field.type : field.type;
   let typeLabel = effectiveType.toLowerCase();
 
+  if (!isArrayField && effectiveType === 'Mixed' && field.bsonTypes?.length) {
+    typeLabel = field.bsonTypes.map((type) => type.toLowerCase()).join('|');
+  }
+
   if (isArrayField) {
     typeLabel = effectiveType === 'Document' ? 'object[]' : `${effectiveType.toLowerCase()}[]`;
   } else if (effectiveType === 'Document') {

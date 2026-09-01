@@ -54,6 +54,7 @@ interface QuickFieldDraft {
   arrayType: string;
   ref: string;
   arrayRef: string;
+  bsonTypes: string[];
 }
 
 interface RelationDraft {
@@ -296,7 +297,8 @@ function buildDefaultQuickFieldDraft(): QuickFieldDraft {
     enumEnabled: false,
     arrayType: 'String',
     ref: '',
-    arrayRef: ''
+    arrayRef: '',
+    bsonTypes: []
   };
 }
 
@@ -886,6 +888,9 @@ export default function DiagramStudio({
       isArray: quickFieldDraft.isArray,
       required: quickFieldDraft.required,
       nullable: quickFieldDraft.nullable,
+      bsonTypes: !quickFieldDraft.isArray && quickFieldDraft.type === 'Mixed' && quickFieldDraft.bsonTypes.length > 0
+        ? quickFieldDraft.bsonTypes
+        : undefined,
       enum: quickFieldDraft.enumEnabled || quickFieldDraft.type === 'Enum' ? [''] : undefined,
       description: '',
       nestedFields: []
@@ -2026,6 +2031,7 @@ export default function DiagramStudio({
                               setQuickFieldDraft((current) => ({
                                 ...current,
                                 type: e.target.value,
+                                bsonTypes: e.target.value === 'Mixed' ? current.bsonTypes : [],
                                 arrayType: current.isArray ? current.arrayType : 'String',
                                 ref: e.target.value === 'ObjectId' ? current.ref : '',
                                 arrayRef: current.isArray ? current.arrayRef : ''
@@ -2079,6 +2085,25 @@ export default function DiagramStudio({
                           {language === 'es' ? 'Añadir' : 'Add'}
                         </Button>
                       </div>
+                      {!quickFieldDraft.isArray && quickFieldDraft.type === 'Mixed' && (
+                        <FormControl size="small" fullWidth sx={{ ...INPUT_SX, mt: 1 }}>
+                          <InputLabel>Tipos BSON permitidos</InputLabel>
+                          <Select
+                            multiple
+                            value={quickFieldDraft.bsonTypes}
+                            label="Tipos BSON permitidos"
+                            renderValue={(selected) => (selected as string[]).join(', ')}
+                            onChange={(e) => setQuickFieldDraft((current) => {
+                              const bsonTypes = e.target.value as string[];
+                              return { ...current, bsonTypes, type: 'Mixed' };
+                            })}
+                          >
+                            {MONGO_TYPES.filter((type) => !['Array', 'Document', 'Enum', 'Mixed', 'Null'].includes(type)).map((type) => (
+                              <MenuItem key={type} value={type}>{getMongoTypeOptionLabel(type)}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
                     </div>
 
                     <div className="mt-3">

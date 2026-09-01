@@ -19,7 +19,7 @@ export function normalizeMongoTypeLabel(value: string) {
 
 export function getMongoTypeOptionLabel(type: string) {
   if (type === 'Decimal128') return 'Decimal';
-  if (type === 'Mixed') return 'Any';
+  if (type === 'Mixed') return 'Mixed';
   if (type === 'Buffer') return 'binData';
   if (type === 'DbPointer') return 'dbPointer';
   if (type === 'JavaScript') return 'javascript';

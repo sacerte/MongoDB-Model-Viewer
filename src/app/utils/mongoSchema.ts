@@ -55,6 +55,15 @@ function buildFieldSchema(modelName: string, fieldPath: string, field: Field): R
   const isArrayField = Boolean((field as any).isArray) || field.type === 'Array';
   const effectiveType = isArrayField ? field.arrayType || field.type : field.type;
 
+  if (!isArrayField && field.bsonTypes && field.bsonTypes.length > 0) {
+    schema.bsonType = withNullableBsonType(
+      field.bsonTypes.map(mongoTypeToBsonType),
+      field
+    );
+    if (field.enum && field.enum.length > 0) schema.enum = field.enum;
+    return schema;
+  }
+
   if (isArrayField) {
     schema.bsonType = withNullableBsonType('array', field);
     const itemsSchema = buildArrayItemsSchema(modelName, fieldPath, field);
@@ -317,4 +326,15 @@ function withNullableBsonType(bsonType: string | string[], field?: Field) {
   }
 
   return [...bsonTypes, 'null'];
+}
+
+function mongoTypeToBsonType(type: string): string {
+  const types: Record<string, string> = {
+    String: 'string', Number: 'number', Int: 'int', Double: 'double', Long: 'long',
+    Boolean: 'bool', Date: 'date', Timestamp: 'timestamp', ObjectId: 'objectId',
+    Buffer: 'binData', Undefined: 'undefined', DbPointer: 'dbPointer', JavaScript: 'javascript',
+    JavaScriptWithScope: 'javascriptWithScope', Regex: 'regex', Symbol: 'symbol',
+    MinKey: 'minKey', MaxKey: 'maxKey', Decimal128: 'decimal', Null: 'null'
+  };
+  return types[type] || 'string';
 }

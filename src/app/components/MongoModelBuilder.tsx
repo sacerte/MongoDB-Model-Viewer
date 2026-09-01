@@ -11,6 +11,8 @@ export interface Field {
   isId?: boolean;
   required: boolean;
   nullable?: boolean;
+  /** Additional scalar MongoDB types accepted by this field. */
+  bsonTypes?: string[];
   description?: string;
   ref?: string;
   arrayType?: string;

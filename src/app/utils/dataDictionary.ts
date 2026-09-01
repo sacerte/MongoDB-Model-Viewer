@@ -119,6 +119,9 @@ export function formatFieldType(field: Field): string {
   if (effectiveType === 'Document') {
     return normalizeMongoTypeLabel(`Document${nullableSuffix}`);
   }
+  if (!isArrayField && effectiveType === 'Mixed' && field.bsonTypes?.length) {
+    return normalizeMongoTypeLabel(`${field.bsonTypes.join(' | ')}${nullableSuffix}`);
+  }
   return normalizeMongoTypeLabel(`${effectiveType}${nullableSuffix}`);
 }
 
