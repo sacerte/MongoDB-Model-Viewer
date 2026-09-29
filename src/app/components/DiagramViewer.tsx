@@ -102,6 +102,8 @@ const DIAGRAM_VIEW_PADDING = 120;
 const DIAGRAM_VIEW_EDGE_PADDING = 40;
 const DIAGRAM_EXPORT_TIGHT_PADDING = 36;
 const DIAGRAM_EXPORT_SCALE = 2;
+const PDF_MAX_PAGE_SIZE_PT = 14400;
+const PDF_PT_PER_PX = 96 / 72;
 
 export default function DiagramViewer({
   projectName = 'diagram',
@@ -1039,18 +1041,25 @@ export default function DiagramViewer({
     if (!exportAsset) return;
     const exportCanvas = exportAsset.canvas;
 
+    const largestLogicalSide = Math.max(exportAsset.bounds.width, exportAsset.bounds.height);
+    const maxPageScale = PDF_MAX_PAGE_SIZE_PT / (PDF_PT_PER_PX * largestLogicalSide);
+    const pdfScale = Math.min(DIAGRAM_EXPORT_SCALE, maxPageScale);
+    const pageWidth = Math.ceil(exportAsset.bounds.width * pdfScale);
+    const pageHeight = Math.ceil(exportAsset.bounds.height * pdfScale);
+
     const pdf = new jsPDF({
-      orientation: exportCanvas.width >= exportCanvas.height ? 'landscape' : 'portrait',
+      orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
       unit: 'px',
-      format: [exportCanvas.width, exportCanvas.height],
+      format: [pageWidth, pageHeight],
       compress: true
     });
     writeSearchableDiagramTextToPdf(pdf, {
       models,
       renderBoxes: exportAsset.renderBoxes,
-      bounds: exportAsset.bounds
+      bounds: exportAsset.bounds,
+      scale: pdfScale
     });
-    pdf.addImage(exportCanvas.toDataURL('image/png'), 'PNG', 0, 0, exportCanvas.width, exportCanvas.height, undefined, 'FAST');
+    pdf.addImage(exportCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
 
     pdf.save(`${buildExportBaseName(projectName, diagramSheetName)}.pdf`);
   };
@@ -1784,9 +1793,10 @@ function writeSearchableDiagramTextToPdf(
     models: Model[];
     renderBoxes: Map<string, BoxPosition>;
     bounds: { minX: number; minY: number };
+    scale: number;
   }
 ) {
-  const scale = DIAGRAM_EXPORT_SCALE;
+  const scale = payload.scale;
 
   pdf.setTextColor(255, 255, 255);
 

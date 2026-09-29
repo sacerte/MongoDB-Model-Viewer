@@ -327,7 +327,8 @@ export default function FieldEditor({
 
     const updates: Partial<Field> = {
       type: nextType,
-      bsonTypes: nextType === 'Mixed' ? field.bsonTypes : undefined,
+      // Mixed starts without allowed BSON types. They must be chosen explicitly.
+      bsonTypes: nextType === 'Mixed' && field.type === 'Mixed' ? field.bsonTypes : undefined,
       isArray: false,
       nestedFields: nextType === 'Document' ? field.nestedFields || [] : [],
       ref: nextType === 'ObjectId' ? field.arrayRef || field.ref || '' : undefined,
@@ -615,7 +616,7 @@ export default function FieldEditor({
                     <InputLabel sx={compactLabelSx}>Tipos BSON</InputLabel>
                     <Select
                       multiple
-                      value={field.bsonTypes || [field.type]}
+                      value={field.bsonTypes || []}
                       label="Tipos BSON"
                       renderValue={(selected) => (selected as string[]).join(', ')}
                       onChange={(e) => {
@@ -768,7 +769,7 @@ export default function FieldEditor({
               <InputLabel>Tipos BSON</InputLabel>
               <Select
                 multiple
-                value={field.bsonTypes || [field.type]}
+                value={field.bsonTypes || []}
                 label="Tipos BSON"
                 renderValue={(selected) => (selected as string[]).join(', ')}
                 onChange={(e) => {

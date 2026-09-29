@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, TextField } from '@mui/material';
 import { AppSettings } from '../utils/appSettings';
 import { useAppLanguage } from '../i18n';
@@ -14,6 +14,15 @@ export default function AdminSettings({ open, settings, onClose, onSave }: Props
   const { language } = useAppLanguage();
   const [draft, setDraft] = useState<AppSettings>(settings);
   const [newModel, setNewModel] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setDraft({
+        ...settings,
+        aiCustomModels: Array.isArray(settings.aiCustomModels) ? [...settings.aiCustomModels] : []
+      });
+    }
+  }, [open, settings]);
 
   const copy = useMemo(
     () =>
@@ -80,7 +89,11 @@ export default function AdminSettings({ open, settings, onClose, onSave }: Props
           </div>
           {draft.aiCustomModels.length > 0 && (
             <div className="rounded border border-slate-500/30 p-2 text-xs">
-              {draft.aiCustomModels.join(', ')}
+              {draft.aiCustomModels.map((model) => (
+                <div key={model} className="truncate">
+                  {model}
+                </div>
+              ))}
             </div>
           )}
 

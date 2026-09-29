@@ -45,6 +45,7 @@ interface Props {
   onUpdateModel: (model: Model) => void;
   aiApiKey?: string;
   aiBaseUrl?: string;
+  aiCustomModels?: string[];
 }
 
 interface DescriptionEditorProps {
@@ -385,11 +386,27 @@ export default function DataDictionary({
   onUpdateAiModel,
   onUpdateModel,
   aiApiKey,
-  aiBaseUrl
+  aiBaseUrl,
+  aiCustomModels
 }: Props) {
   const { language } = useAppLanguage();
   const [expandedModelId, setExpandedModelId] = useState<string | false>(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const aiModelOptions = useMemo(() => {
+    const optionMap = new Map<string, string>();
+    (Array.isArray(aiCustomModels) ? aiCustomModels : [])
+      .filter(Boolean)
+      .forEach((modelId) => optionMap.set(modelId, modelId));
+    optionMap.set('openai/gpt-oss-120b:free', 'GPT (OpenAI GPT-OSS-120B :free)');
+    optionMap.set('google/gemma-4-31b-it:free', 'Google: Gemma 4 26B A4B :free');
+    optionMap.set('deepseek/deepseek-r1:free', 'DeepSeek R1 :free');
+    const currentValue = (aiModel || '').trim();
+    if (currentValue && !optionMap.has(currentValue)) {
+      optionMap.set(currentValue, currentValue);
+    }
+    return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
+  }, [aiCustomModels, aiModel]);
 
   const visibleModels = useMemo(() => {
     return (Array.isArray(models) ? models : [])
@@ -525,9 +542,11 @@ export default function DataDictionary({
           value={aiModel || 'openai/gpt-oss-120b:free'}
           onChange={(event) => onUpdateAiModel(event.target.value)}
         >
-          <MenuItem value="openai/gpt-oss-120b:free">GPT (OpenAI GPT-OSS-120B :free)</MenuItem>
-          <MenuItem value="google/gemma-4-31b-it:free">Google: Gemma 4 26B A4B :free</MenuItem>
-          <MenuItem value="deepseek/deepseek-r1:free">DeepSeek R1 :free</MenuItem>
+          {aiModelOptions.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
         </TextField>
       </div>
 

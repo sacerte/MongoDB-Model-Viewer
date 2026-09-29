@@ -108,7 +108,7 @@ export default function App() {
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [appSettings, setAppSettings] = useState(loadAppSettings());
   const [aiContext, setAiContext] = useState('');
-  const [aiModel, setAiModel] = useState('openai/gpt-oss-120b:free');
+  const [aiModel, setAiModel] = useState(() => loadAppSettings().aiDefaultModel || 'openai/gpt-oss-120b:free');
   const [undoStack, setUndoStack] = useState<UndoSnapshot[]>([]);
   const [openProjectSessions, setOpenProjectSessions] = useState<OpenProjectSession[]>([]);
   const [activeProjectSessionId, setActiveProjectSessionId] = useState<string | null>(null);
@@ -1333,6 +1333,7 @@ export default function App() {
               onUpdateModel={canEditProject ? handleUpdateModel : () => {}}
               aiApiKey={appSettings.aiApiKey}
               aiBaseUrl={appSettings.aiBaseUrl}
+              aiCustomModels={appSettings.aiCustomModels}
             />
           )}
           {activeTab === 3 && globalPermissions.schema && <JSONSchemaViewer models={models} />}
