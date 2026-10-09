@@ -37,10 +37,10 @@
     "desktop:dist:linux:arm64": "npm run build && ./node_modules/.bin/electron-builder --linux AppImage deb pacman --arm64",
     "desktop:dist:linux:x64": "npm run build && ./node_modules/.bin/electron-builder --linux AppImage deb pacman --x64",
     "desktop:dist:linux:arch": "npm run build && ./node_modules/.bin/electron-builder --linux pacman --x64",
-    "desktop:dist:mac": "npm run build && npm exec electron-builder -- --mac dmg zip --arm64 --x64",
-    "desktop:dist:mac:fast": "npm exec electron-builder -- --mac dmg zip --arm64 --x64",
-    "desktop:dist:mac:arm64": "npm run build && npm exec electron-builder -- --mac dmg zip --arm64",
-    "desktop:dist:mac:x64": "npm run build && npm exec electron-builder -- --mac dmg zip --x64"
+    "desktop:dist:mac": "npm run build && npm exec electron-builder -- --mac dmg zip --arm64 --x64 --publish never",
+    "desktop:dist:mac:fast": "npm exec electron-builder -- --mac dmg zip --arm64 --x64 --publish never",
+    "desktop:dist:mac:arm64": "npm run build && npm exec electron-builder -- --mac dmg zip --arm64 --publish never",
+    "desktop:dist:mac:x64": "npm run build && npm exec electron-builder -- --mac dmg zip --x64 --publish never"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
