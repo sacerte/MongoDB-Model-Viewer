@@ -20,7 +20,7 @@ Está construida con React, Vite y Electron.
 
 ## Requisitos
 
-- Node.js 20 o superior (se recomienda la versión LTS).
+- Node.js 20.19.0 o superior (se recomienda la versión LTS).
 - npm (incluido con Node.js).
 - Git, si se clona el repositorio.
 
@@ -140,6 +140,10 @@ npm run desktop:dist:mac:x64
 Los resultados se crean en `release/` como `.dmg` y `.zip`.
 
 > La compilación y firma de aplicaciones macOS debe hacerse en un equipo macOS. Para publicar fuera de pruebas, configura la firma y notarización de Apple; de lo contrario macOS puede mostrar advertencias de seguridad.
+
+#### Generar los instaladores desde Linux con GitHub Actions
+
+El flujo `.github/workflows/build-macos.yml` compila los instaladores en un runner macOS. Después de subir este flujo al repositorio, abre **Actions → Build macOS artifacts → Run workflow** y selecciona la rama que quieras compilar. Al terminar, descarga `macos-installers` desde **Artifacts** de la ejecución; contiene los archivos `.dmg` y `.zip`.
 
 ### Compilación web y empaquetado de prueba
 

@@ -91,8 +91,9 @@ export default function App() {
   const diagramSheetsRef = useRef<DiagramSheet[]>(buildDefaultDiagramSheets());
   const modelsRef = useRef<Model[]>([]);
   const relationsRef = useRef<Relation[]>([]);
-  const currentProjectRef = useRef<ProjectData | null>(null);
   const [activeDiagramSheetId, setActiveDiagramSheetId] = useState(buildDefaultDiagramSheets()[0].id);
+  const activeDiagramSheetIdRef = useRef(activeDiagramSheetId);
+  const currentProjectRef = useRef<ProjectData | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [currentProject, setCurrentProject] = useState<ProjectData | null>(null);
   const [showProjectManager, setShowProjectManager] = useState(true);
@@ -118,6 +119,10 @@ export default function App() {
   const [copiedCollection, setCopiedCollection] = useState<CopiedCollectionDraft | null>(() =>
     readJsonFromStorage<CopiedCollectionDraft>(COPIED_COLLECTION_STORAGE_KEY)
   );
+  const diagramPdfExporterRef = useRef<(() => Promise<{ base64: string; fileName: string }> | null) | null>(null);
+  const setDiagramPdfExporterRef = (exporter: (() => Promise<{ base64: string; fileName: string }> | null) | null) => {
+    diagramPdfExporterRef.current = exporter;
+  };
   const [appLanguage, setAppLanguage] = useState<AppLanguage>(() => {
     const savedLanguage = localStorage.getItem(APP_LANGUAGE_STORAGE_KEY);
     return savedLanguage === 'en' ? 'en' : 'es';
@@ -308,12 +313,109 @@ export default function App() {
   }, [currentProject]);
 
   useEffect(() => {
+    activeDiagramSheetIdRef.current = activeDiagramSheetId;
+  }, [activeDiagramSheetId]);
+
+  useEffect(() => {
     writeJsonToStorage(COPIED_ATTRIBUTES_STORAGE_KEY, copiedAttributes);
   }, [copiedAttributes]);
 
   useEffect(() => {
     writeJsonToStorage(COPIED_COLLECTION_STORAGE_KEY, copiedCollection);
   }, [copiedCollection]);
+
+  useEffect(() => {
+    const mcp = (window as unknown as { desktopApp?: { mcp?: { onRequest?: (channel: string, handler: (payload: Record<string, unknown>) => Promise<unknown>) => (() => void) | void } } }).desktopApp?.mcp;
+    if (!mcp?.onRequest) return;
+
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(
+      mcp.onRequest('mcp:export-diagram-pdf-request', async (payload) => {
+        const requestedSheet = typeof payload?.sheetName === 'string' ? payload.sheetName.trim() : '';
+        const format = payload?.format === 'png' ? 'png' : 'pdf';
+        const runExport = async (): Promise<{ base64: string; fileName: string }> => {
+          if (!diagramPdfExporterRef.current) {
+            throw new Error('El diagrama no está disponible (pestaña Diagram Studio no activa o sin colecciones)');
+          }
+          const result = await diagramPdfExporterRef.current(format);
+          if (!result) {
+            throw new Error('No hay colecciones para exportar en el diagrama');
+          }
+          return result;
+        };
+
+        if (requestedSheet) {
+          const sheet = diagramSheetsRef.current.find(
+            (candidate) => candidate.name.toLowerCase() === requestedSheet.toLowerCase()
+          );
+          if (!sheet) {
+            const available = diagramSheetsRef.current.map((candidate) => candidate.name).join(', ');
+            throw new Error(`No existe la hoja de diagrama "${requestedSheet}". Hojas disponibles: ${available}`);
+          }
+          const previousSheetId = activeDiagramSheetIdRef.current;
+          if (sheet.id !== previousSheetId) {
+            setActiveDiagramSheetId(sheet.id);
+            // Esperar a que DiagramViewer remonte con la hoja pedida y registre su exportador.
+            await new Promise((resolve) => setTimeout(resolve, 600));
+          }
+          try {
+            const result = await runExport();
+            return { ok: true, base64: result.base64, fileName: result.fileName };
+          } finally {
+            if (sheet.id !== previousSheetId) {
+              setActiveDiagramSheetId(previousSheetId);
+            }
+          }
+        }
+
+        const result = await runExport();
+        return { ok: true, base64: result.base64, fileName: result.fileName };
+      })
+    );
+
+    unsubs.push(
+      mcp.onRequest('mcp:export-dictionary-xlsx-request', async () => {
+        const { buildDataDictionaryWorkbookBuffer } = await import('./utils/dataDictionary');
+        const buffer = await buildDataDictionaryWorkbookBuffer(models);
+        const uint8 = new Uint8Array(buffer as ArrayBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8.length; i += 0x8000) {
+          binary += String.fromCharCode(...uint8.subarray(i, i + 0x8000));
+        }
+        const safeName = (currentProject?.name || 'project').replace(/[^\w.-]+/g, '_');
+        return {
+          ok: true,
+          base64: btoa(binary),
+          fileName: `${safeName}_data_dictionary.xlsx`
+        };
+      })
+    );
+
+    unsubs.push(
+      mcp.onRequest('mcp:export-collection-schemas-request', async (payload) => {
+        const { generateValidationSchema, generateIndexExportPayload } = await import('./utils/mongoSchema');
+        const filter = Array.isArray(payload?.collections) ? (payload.collections as string[]) : null;
+        const requested = filter ? new Set(filter) : null;
+        const results = (requested ? models.filter((model) => requested.has(model.name)) : models).map((model) => ({
+          collection: model.name,
+          validation: generateValidationSchema(model),
+          indexes: (model.indexes || []).map((index) => ({
+            name: index.name,
+            type: index.type,
+            definition: generateIndexExportPayload(model, index)
+          }))
+        }));
+        const missing = requested ? Array.from(requested).filter((name) => !models.some((model) => model.name === name)) : [];
+        if (missing.length > 0) {
+          throw new Error(`Colecciones no encontradas en el modelo: ${missing.join(', ')}`);
+        }
+        return { ok: true, collections: results };
+      })
+    );
+
+    return () => unsubs.forEach((unsub) => typeof unsub === 'function' && unsub());
+  }, [models, currentProject]);
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
@@ -1310,6 +1412,7 @@ export default function App() {
               onChangeActiveDiagramSheetId={setActiveDiagramSheetId}
               canUndo={undoStack.length > 0}
               onUndo={handleUndo}
+              onExportPdfReady={setDiagramPdfExporterRef}
               copiedAttributes={copiedAttributes}
               onCopiedAttributesChange={setCopiedAttributes}
               copiedCollection={copiedCollection}

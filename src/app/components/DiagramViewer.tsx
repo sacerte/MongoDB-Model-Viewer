@@ -40,6 +40,7 @@ interface Props {
   activeSearchMatch?: { modelId: string; fieldPath: string; sequence: number } | null;
   canUndo?: boolean;
   onUndo?: () => void;
+  onExportPdfReady?: (exporter: ((format: 'pdf' | 'png') => Promise<{ base64: string; fileName: string }> | null) | null) => void;
 }
 
 interface Position {
@@ -126,7 +127,8 @@ export default function DiagramViewer({
   fieldSearchQuery = '',
   activeSearchMatch = null,
   canUndo = false,
-  onUndo
+  onUndo,
+  onExportPdfReady
 }: Props) {
   const { language } = useAppLanguage();
   const copy =
@@ -1063,6 +1065,46 @@ export default function DiagramViewer({
 
     pdf.save(`${buildExportBaseName(projectName, diagramSheetName)}.pdf`);
   };
+
+  useEffect(() => {
+    if (!onExportPdfReady) return;
+    const exporter = async (format: 'pdf' | 'png'): Promise<{ base64: string; fileName: string } | null> => {
+      const exportAsset = buildTightExportCanvas();
+      if (!exportAsset) return null;
+      const exportCanvas = exportAsset.canvas;
+      const fileName = `${buildExportBaseName(projectName, diagramSheetName)}.${format}`;
+
+      if (format === 'png') {
+        const base64 = exportCanvas.toDataURL('image/png').split(',')[1] || '';
+        return { base64, fileName };
+      }
+
+      const largestLogicalSide = Math.max(exportAsset.bounds.width, exportAsset.bounds.height);
+      const maxPageScale = PDF_MAX_PAGE_SIZE_PT / (PDF_PT_PER_PX * largestLogicalSide);
+      const pdfScale = Math.min(DIAGRAM_EXPORT_SCALE, maxPageScale);
+      const pageWidth = Math.ceil(exportAsset.bounds.width * pdfScale);
+      const pageHeight = Math.ceil(exportAsset.bounds.height * pdfScale);
+
+      const pdf = new jsPDF({
+        orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [pageWidth, pageHeight],
+        compress: true
+      });
+      writeSearchableDiagramTextToPdf(pdf, {
+        models,
+        renderBoxes: exportAsset.renderBoxes,
+        bounds: exportAsset.bounds,
+        scale: pdfScale
+      });
+      pdf.addImage(exportCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
+
+      const base64 = pdf.output('datauristring').split(',')[1] || '';
+      return { base64, fileName };
+    };
+    onExportPdfReady((format) => exporter(format));
+    return () => onExportPdfReady(null);
+  }, [onExportPdfReady, models, projectName, diagramSheetName]);
 
   const handleAddRelation = () => {
     if (!relationDraft.fromModelId || !relationDraft.toModelId) {

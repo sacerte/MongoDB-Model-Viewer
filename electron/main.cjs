@@ -1,6 +1,7 @@
 const { app, BrowserWindow, shell, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const mcpServer = require('./mcpServer.cjs');
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 const DIST_PATH = path.join(__dirname, '..', 'dist');
@@ -150,8 +151,7 @@ ipcMain.handle('storage:readLocalProjects', async () => {
 
 function createMainWindow(initialOpenFilePath = null) {
   allowWindowClose = false;
-  const mainWindow = new BrowserWindow({
-    title: 'MongoDBModeler',
+  const mainWindow = new BrowserWindow({    title: 'MongoDBModeler',
     width: 1440,
     height: 960,
     minWidth: 1100,
@@ -168,6 +168,7 @@ function createMainWindow(initialOpenFilePath = null) {
     }
   });
   mainWindowRef = mainWindow;
+  mcpServer.setWindow(mainWindow);
   mainWindow.webContents.session.setSpellCheckerLanguages(['es-ES', 'en-US']);
 
   mainWindow.on('focus', () => {
@@ -326,6 +327,10 @@ ipcMain.on('app:close-response', (event, canClose) => {
   window.close();
 });
 
+ipcMain.on('mcp:response', (_event, channel, payload) => {
+  mcpServer.handleRendererResponse(channel, payload);
+});
+
 const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {
   app.quit();
@@ -366,7 +371,8 @@ app.on('open-file', (event, filePath) => {
 app.whenReady().then(() => {
   app.setName('MongoDBModeler');
   pendingOpenFilePath = pendingOpenFilePath || extractOpenFileFromArgv(process.argv);
-  createMainWindow();
+  const mainWindow = createMainWindow();
+  mcpServer.startMcpServer(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

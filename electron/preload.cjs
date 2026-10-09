@@ -29,5 +29,17 @@ contextBridge.exposeInMainWorld('desktopApp', {
     selectFolder: () => ipcRenderer.invoke('sync:selectFolder'),
     writeProjects: (folderPath, projects) => ipcRenderer.invoke('sync:writeProjects', folderPath, projects),
     readProjects: (folderPath) => ipcRenderer.invoke('sync:readProjects', folderPath)
+  },
+  mcp: {
+    onRequest: (channel, handler) => {
+      if (typeof handler !== 'function') return () => {};
+      const listener = (_event, payload) => {
+        Promise.resolve(handler(payload || {}))
+          .then((result) => ipcRenderer.send('mcp:response', channel, { ok: true, result }))
+          .catch((error) => ipcRenderer.send('mcp:response', channel, { ok: false, error: error?.message || String(error) }));
+      };
+      ipcRenderer.on(channel, listener);
+      return () => ipcRenderer.removeListener(channel, listener);
+    }
   }
 });

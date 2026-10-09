@@ -110,6 +110,7 @@ interface Props {
   onChangeActiveDiagramSheetId: (diagramSheetId: string) => void;
   canUndo?: boolean;
   onUndo?: () => void;
+  onExportPdfReady?: (exporter: ((format: 'pdf' | 'png') => Promise<{ base64: string; fileName: string }> | null) | null) => void;
   copiedAttributes: CopiedAttributesDraft | null;
   onCopiedAttributesChange: (nextValue: CopiedAttributesDraft | null) => void;
   copiedCollection: CopiedCollectionDraft | null;
@@ -319,6 +320,7 @@ export default function DiagramStudio({
   onChangeActiveDiagramSheetId,
   canUndo = false,
   onUndo,
+  onExportPdfReady,
   copiedAttributes,
   onCopiedAttributesChange,
   copiedCollection,
@@ -1626,6 +1628,7 @@ export default function DiagramStudio({
               activeSearchMatch={activeDiagramSearchMatch}
               canUndo={canUndo}
               onUndo={onUndo}
+              onExportPdfReady={onExportPdfReady}
               onSelectModel={handleSelectDiagramModel}
               onSelectField={(modelId, fieldPath, options) => {
                 setSelectedModelIds([modelId]);

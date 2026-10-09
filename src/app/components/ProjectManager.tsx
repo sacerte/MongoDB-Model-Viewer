@@ -50,6 +50,9 @@ declare global {
         writeProjects: (folderPath: string, projects: ProjectData[]) => Promise<{ ok: boolean; error?: string }>;
         readProjects: (folderPath: string) => Promise<{ ok: boolean; projects: ProjectData[]; error?: string }>;
       };
+      mcp?: {
+        onRequest: (channel: string, handler: (payload: any) => Promise<any>) => (() => void) | void;
+      };
     };
   }
 }
@@ -207,6 +210,73 @@ export default function ProjectManager({
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [language]);
+
+  useEffect(() => {
+    const mcp = window.desktopApp?.mcp;
+    if (!mcp?.onRequest) return;
+
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(
+      mcp.onRequest('mcp:list-projects-request', async () => {
+        const local = await loadLocalProjects();
+        return {
+          ok: true,
+          activeProjectId: currentProject?.id || null,
+          savedProjects: local.map((project) => ({
+            id: project.id,
+            name: project.name,
+            version: project.version || 1,
+            modelCount: (project.models || []).length,
+            sourceFilePath: project.sourceFilePath || null,
+            updatedAt: project.updated_at || project.created_at || null
+          }))
+        };
+      })
+    );
+
+    unsubs.push(
+      mcp.onRequest('mcp:get-project-request', async (payload: { projectId?: string }) => {
+        const projectId = payload?.projectId;
+        if (projectId) {
+          const local = await loadLocalProjects();
+          const found = local.find((project) => project.id === projectId);
+          if (!found) {
+            throw new Error(`No se encontró el proyecto guardado: ${projectId}`);
+          }
+          return { ok: true, project: found };
+        }
+        if (!currentProject) {
+          throw new Error('No hay proyecto activo en la app');
+        }
+        return { ok: true, project: currentProject };
+      })
+    );
+
+    unsubs.push(
+      mcp.onRequest('mcp:save-mdm-request', async () => {
+        if (!currentProject) {
+          throw new Error('No hay proyecto activo en la app');
+        }
+        const bundle = createProjectBundle(
+          currentProject.name,
+          currentProject.models || [],
+          currentProject.relations || [],
+          currentProject.diagramSheets,
+          currentProject
+        );
+        const safeName = (currentProject.name || 'project').replace(/[^\w.-]+/g, '_');
+        const filePath = `/home/Yaser/Documents/MongoDBProject/models/${safeName}.mdm`;
+        const result = await window.desktopApp?.writeTextFile?.(filePath, JSON.stringify(bundle, null, 2));
+        if (!result?.ok) {
+          throw new Error(result?.error || 'No se pudo escribir el archivo .mdm');
+        }
+        return { ok: true, filePath, projectName: currentProject.name };
+      })
+    );
+
+    return () => unsubs.forEach((unsub) => typeof unsub === 'function' && unsub());
+  }, [currentProject, language]);
 
   useEffect(() => {
     setCurrentProjectNameDraft(currentProject?.name || '');
