@@ -94,6 +94,7 @@ export default function App() {
   const [activeDiagramSheetId, setActiveDiagramSheetId] = useState(buildDefaultDiagramSheets()[0].id);
   const activeDiagramSheetIdRef = useRef(activeDiagramSheetId);
   const currentProjectRef = useRef<ProjectData | null>(null);
+  const appSettingsRef = useRef(loadAppSettings());
   const [activeTab, setActiveTab] = useState(0);
   const [currentProject, setCurrentProject] = useState<ProjectData | null>(null);
   const [showProjectManager, setShowProjectManager] = useState(true);
@@ -311,6 +312,9 @@ export default function App() {
   useEffect(() => {
     currentProjectRef.current = currentProject;
   }, [currentProject]);
+  useEffect(() => {
+    appSettingsRef.current = appSettings;
+  }, [appSettings]);
 
   useEffect(() => {
     activeDiagramSheetIdRef.current = activeDiagramSheetId;
@@ -397,14 +401,61 @@ export default function App() {
         const { generateValidationSchema, generateIndexExportPayload } = await import('./utils/mongoSchema');
         const filter = Array.isArray(payload?.collections) ? (payload.collections as string[]) : null;
         const requested = filter ? new Set(filter) : null;
-        const results = (requested ? models.filter((model) => requested.has(model.name)) : models).map((model) => ({
-          collection: model.name,
-          validation: generateValidationSchema(model),
-          indexes: (model.indexes || []).map((index) => ({
-            name: index.name,
-            type: index.type,
-            definition: generateIndexExportPayload(model, index)
-          }))
+        const sourceFilePath = (currentProjectRef.current as ProjectDataWithSource | null)?.sourceFilePath || null;
+        const docsDir = (appSettingsRef.current.docsDir || '').trim();
+        const results = await Promise.all((requested ? models.filter((model) => requested.has(model.name)) : models).map(async (model) => {
+          const schema = generateValidationSchema(model);
+          const fileContent = JSON.stringify([model.name, schema.$jsonSchema], null, 2);
+          const writtenTo: string[] = [];
+          const writeSkipped: Record<string, string> = {};
+
+          const modelsDir = sourceFilePath?.includes('/models/')
+            ? sourceFilePath.slice(0, sourceFilePath.lastIndexOf('/models/'))
+            : null;
+          if (modelsDir) {
+            const originalPath = `${modelsDir}/json_schemas/${model.name}.json`;
+            try {
+              const writeResult = await window.desktopApp?.writeTextFile?.(originalPath, fileContent);
+              if (writeResult?.ok) {
+                writtenTo.push(originalPath);
+              } else {
+                writeSkipped[originalPath] = writeResult?.error || 'No se pudo escribir el archivo';
+              }
+            } catch (error) {
+              writeSkipped[originalPath] = error instanceof Error ? error.message : String(error);
+            }
+          } else {
+            writeSkipped.json_schemas = 'El proyecto activo no tiene sourceFilePath (.mdm), no se puede derivar la carpeta json_schemas';
+          }
+
+          if (docsDir) {
+            const safeProjectName = (currentProjectRef.current?.name || 'project').replace(/[^\w.-]+/g, '_');
+            const copyPath = `${docsDir.replace(/[/\\]+$/, '')}/${safeProjectName}/${model.name}.json`;
+            try {
+              const writeResult = await window.desktopApp?.writeTextFile?.(copyPath, fileContent);
+              if (writeResult?.ok) {
+                writtenTo.push(copyPath);
+              } else {
+                writeSkipped[copyPath] = writeResult?.error || 'No se pudo escribir el archivo';
+              }
+            } catch (error) {
+              writeSkipped[copyPath] = error instanceof Error ? error.message : String(error);
+            }
+          } else {
+            writeSkipped.docs = 'Setting docsDir no configurado (Admin / Configuración)';
+          }
+
+          return {
+            collection: model.name,
+            validation: schema,
+            indexes: (model.indexes || []).map((index) => ({
+              name: index.name,
+              type: index.type,
+              definition: generateIndexExportPayload(model, index)
+            })),
+            writtenTo,
+            ...(Object.keys(writeSkipped).length > 0 ? { writeSkipped } : {})
+          };
         }));
         const missing = requested ? Array.from(requested).filter((name) => !models.some((model) => model.name === name)) : [];
         if (missing.length > 0) {

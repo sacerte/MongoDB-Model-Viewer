@@ -2101,7 +2101,7 @@ export default function DiagramStudio({
                               return { ...current, bsonTypes, type: 'Mixed' };
                             })}
                           >
-                            {MONGO_TYPES.filter((type) => !['Array', 'Document', 'Enum', 'Mixed', 'Null'].includes(type)).map((type) => (
+                            {MONGO_TYPES.filter((type) => !['Document', 'Enum', 'Mixed', 'Null'].includes(type)).map((type) => (
                               <MenuItem key={type} value={type}>{getMongoTypeOptionLabel(type)}</MenuItem>
                             ))}
                           </Select>

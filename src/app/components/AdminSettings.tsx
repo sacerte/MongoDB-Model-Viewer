@@ -42,6 +42,7 @@ export default function AdminSettings({ open, settings, onClose, onSave }: Props
             autosave: 'Autosave',
             autosaveSec: 'Intervalo autosave (segundos)',
           enableDocs: 'Habilitar pestaña de documentación',
+          docsDir: 'Carpeta docs',
           cancel: 'Cancelar',
           save: 'Guardar'
           }
@@ -60,6 +61,7 @@ export default function AdminSettings({ open, settings, onClose, onSave }: Props
             autosave: 'Autosave',
             autosaveSec: 'Autosave interval (seconds)',
           enableDocs: 'Enable documentation tab',
+          docsDir: 'Docs folder',
           cancel: 'Cancel',
           save: 'Save'
           },
@@ -128,6 +130,13 @@ export default function AdminSettings({ open, settings, onClose, onSave }: Props
           <FormControlLabel
             control={<Checkbox checked={Boolean(draft.enableDocumentation)} onChange={(e) => setDraft({ ...draft, enableDocumentation: e.target.checked })} />}
             label={copy.enableDocs}
+          />
+          <TextField
+            fullWidth
+            label={copy.docsDir}
+            value={draft.docsDir}
+            placeholder="/home/usuario/Documentos/MongoDBProject/docs"
+            onChange={(e) => setDraft({ ...draft, docsDir: e.target.value })}
           />
         </div>
       </DialogContent>

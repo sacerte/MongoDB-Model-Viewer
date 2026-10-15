@@ -60,6 +60,12 @@ function buildFieldSchema(modelName: string, fieldPath: string, field: Field): R
       field.bsonTypes.map(mongoTypeToBsonType),
       field
     );
+    const scalarBsonTypes = field.bsonTypes
+      .filter((type) => type !== 'Array' && type !== 'Null')
+      .map(mongoTypeToBsonType);
+    if (scalarBsonTypes.length > 0) {
+      schema.items = { bsonType: scalarBsonTypes };
+    }
     if (field.enum && field.enum.length > 0) schema.enum = field.enum;
     return schema;
   }
@@ -330,7 +336,7 @@ function withNullableBsonType(bsonType: string | string[], field?: Field) {
 
 function mongoTypeToBsonType(type: string): string {
   const types: Record<string, string> = {
-    String: 'string', Number: 'number', Int: 'int', Double: 'double', Long: 'long',
+    String: 'string', Array: 'array', Number: 'number', Int: 'int', Double: 'double', Long: 'long',
     Boolean: 'bool', Date: 'date', Timestamp: 'timestamp', ObjectId: 'objectId',
     Buffer: 'binData', Undefined: 'undefined', DbPointer: 'dbPointer', JavaScript: 'javascript',
     JavaScriptWithScope: 'javascriptWithScope', Regex: 'regex', Symbol: 'symbol',

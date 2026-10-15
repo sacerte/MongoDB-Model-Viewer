@@ -313,6 +313,7 @@ ipcMain.handle('app:writeTextFile', async (_event, filePath, content) => {
   try {
     if (!filePath) return { ok: false, error: 'Missing file path' };
     if (typeof content !== 'string') return { ok: false, error: 'Invalid content' };
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content, 'utf-8');
     return { ok: true };
   } catch (error) {

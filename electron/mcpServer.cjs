@@ -5,6 +5,7 @@ const fs = require('fs');
 const MCP_PORT = 8100;
 const MCP_HOST = '127.0.0.1';
 const MODELS_DIR = '/home/Yaser/Documents/MongoDBProject/models';
+const DOCS_DIR = '/home/Yaser/Documents/MongoDBProject/docs';
 
 const JSONRPC_VERSION = '2.0';
 
@@ -170,7 +171,7 @@ const TOOLS = [
   {
     name: 'export_collection_schemas',
     description:
-      'Exporta el jsonSchema (validación) y los índices de las colecciones del proyecto activo. Devuelve por cada colección { collection, validation, indexes:[{name,type,definition}] }. Con collections se filtra por nombres; sin él, devuelve todas.',
+      'Exporta el jsonSchema (validación) y los índices de las colecciones del proyecto activo. Escribe cada jsonSchema en la carpeta json_schemas junto al .mdm del proyecto y una copia en {docsDir}/{nombre_proyecto}/ (docsDir configurable en Admin / Configuración). Devuelve por cada colección { collection, validation, indexes:[{name,type,definition}], writtenTo:[paths] } (y writeSkipped si alguna escritura se omitió). Con collections se filtra por nombres; sin él, devuelve todas.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -236,6 +237,7 @@ async function dispatchToolCall(name, args) {
         hasWindow: Boolean(win && !win.isDestroyed()),
         startedAt: serverState.startedAt,
         modelsDir: MODELS_DIR,
+        docsDir: DOCS_DIR,
         mcpPort: MCP_PORT
       };
     }
@@ -429,6 +431,7 @@ module.exports = {
   MCP_PORT,
   MCP_HOST,
   MODELS_DIR,
+  DOCS_DIR,
   startMcpServer,
   setWindow,
   setRequestHandlers,

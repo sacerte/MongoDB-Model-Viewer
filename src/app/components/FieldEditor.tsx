@@ -223,7 +223,7 @@ export default function FieldEditor({
     ? `Mixed (${field.bsonTypes.join(' | ')})`
     : getMongoTypeOptionLabel(defaultTypeValue);
   const defaultTypeOptions = isIdField ? NON_ARRAY_TYPES : MONGO_TYPES;
-  const multiTypeOptions = NON_ARRAY_TYPES.filter((type) => !['Enum', 'Document', 'Mixed', 'Null'].includes(type));
+  const multiTypeOptions = MONGO_TYPES.filter((type) => !['Enum', 'Document', 'Mixed', 'Null'].includes(type));
 
   useEffect(() => {
     if (forceExpand) {

@@ -10,6 +10,7 @@ export interface AppSettings {
   autosaveEnabled: boolean;
   autosaveIntervalSec: number;
   enableDocumentation?: boolean;
+  docsDir: string;
 }
 
 const APP_SETTINGS_STORAGE_KEY = 'mongodb-model-viewer-app-settings';
@@ -23,7 +24,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   cloudPathOrBucket: '',
   autosaveEnabled: true,
   autosaveIntervalSec: 60,
-  enableDocumentation: false
+  enableDocumentation: false,
+  docsDir: ''
 };
 
 export function loadAppSettings(): AppSettings {
