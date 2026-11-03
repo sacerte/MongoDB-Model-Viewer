@@ -20,6 +20,7 @@ import {
   FormControlLabel
 } from '@mui/material';
 import { Model } from './MongoModelBuilder';
+import { normalizeMongoType } from '../utils/mongoSchema';
 import { Trash2, Download, Save, Plus, RotateCcw } from 'lucide-react';
 import JSON5 from 'json5';
 import {
@@ -917,13 +918,38 @@ function normalizeImportedProject(project: ProjectData): ProjectData {
           ...model,
           id: model?.id || createId(),
           name: model?.name || 'ImportedCollection',
-          fields: Array.isArray(model?.fields) ? model.fields : [],
+          fields: Array.isArray(model?.fields) ? model.fields.map(normalizeFieldTypeDeep) : [],
           indexes: Array.isArray((model as any)?.indexes) ? (model as any).indexes : []
         }))
       : [],
     relations: Array.isArray(project.relations) ? project.relations : [],
     documentation: sanitizedDocumentation
   };
+}
+
+// Canoniza los tipos de campo al importar: si algún tipo se guardó como etiqueta
+// de UI (p. ej. 'Decimal'), se convierte al tipo canónico ('Decimal128') para que
+// las exportaciones y validaciones siempre reflejen el tipo del diagrama.
+function normalizeFieldTypeDeep(field: any): any {
+  if (!field || typeof field !== 'object') {
+    return field;
+  }
+  const next: any = { ...field };
+  if (typeof next.type === 'string') {
+    next.type = normalizeMongoType(next.type);
+  }
+  if (typeof next.arrayType === 'string') {
+    next.arrayType = normalizeMongoType(next.arrayType);
+  }
+  if (Array.isArray(next.bsonTypes)) {
+    next.bsonTypes = next.bsonTypes.map((type: unknown) =>
+      typeof type === 'string' ? normalizeMongoType(type) : type
+    );
+  }
+  if (Array.isArray(next.nestedFields)) {
+    next.nestedFields = next.nestedFields.map(normalizeFieldTypeDeep);
+  }
+  return next;
 }
 
 function isCompassMdmFile(value: unknown): value is { type: string; edits: string; name?: string } {

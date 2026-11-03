@@ -321,6 +321,53 @@ ipcMain.handle('app:writeTextFile', async (_event, filePath, content) => {
   }
 });
 
+let englishWordsCache = null;
+function getEnglishWords() {
+  if (englishWordsCache) return englishWordsCache;
+  englishWordsCache = new Set();
+  const candidates = ['/usr/share/dict/american-english', '/usr/share/dict/words'];
+  for (const dictPath of candidates) {
+    try {
+      if (!fs.existsSync(dictPath)) continue;
+      const raw = fs.readFileSync(dictPath, 'utf-8');
+      for (const word of raw.split(/\r?\n/)) {
+        const clean = word.trim().toLowerCase().replace(/'.*$/, '');
+        if (clean) englishWordsCache.add(clean);
+      }
+      if (englishWordsCache.size > 0) break;
+    } catch (error) {
+      // Probar con el siguiente diccionario
+    }
+  }
+  return englishWordsCache;
+}
+
+const ENGLISH_ALLOWLIST = new Set([
+  'id', 'ids', 'uuid', 'guid', 'url', 'urls', 'uri', 'api', 'db', 'ttl', 'json', 'xml', 'csv',
+  'http', 'https', 'iso', 'ref', 'refs', 'src', 'desc', 'qty', 'amt', 'ts', 'dob', 'email',
+  'iban', 'nif', 'nie', 'dni', 'cif', 'nss', 'sms', 'pdf', 'img', 'md5', 'sha', 'sha1', 'sha256',
+  'mongo', 'mongodb', 'bson', 'oid'
+]);
+
+ipcMain.handle('app:checkEnglishWords', async (_event, words) => {
+  try {
+    const dict = getEnglishWords();
+    const list = Array.isArray(words) ? words.filter((word) => typeof word === 'string' && word.trim()) : [];
+    const unknown = list.filter((word) => {
+      const lower = word.toLowerCase();
+      if (ENGLISH_ALLOWLIST.has(lower)) return false;
+      if (dict.has(lower)) return false;
+      if (dict.has(lower.replace(/ies$/, 'y'))) return false;
+      if (dict.has(lower.replace(/es$/, ''))) return false;
+      if (dict.has(lower.replace(/s$/, ''))) return false;
+      return true;
+    });
+    return { ok: true, unknown };
+  } catch (error) {
+    return { ok: false, unknown: [], error: error?.message || 'Could not check words' };
+  }
+});
+
 ipcMain.on('app:close-response', (event, canClose) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window.isDestroyed() || !canClose) return;

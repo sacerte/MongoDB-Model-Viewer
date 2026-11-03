@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('desktopApp', {
   },
   readTextFile: (filePath) => ipcRenderer.invoke('app:readTextFile', filePath),
   writeTextFile: (filePath, content) => ipcRenderer.invoke('app:writeTextFile', filePath, content),
+  checkEnglishWords: (words) => ipcRenderer.invoke('app:checkEnglishWords', words),
   storage: {
     writeLocalProjects: (projects) => ipcRenderer.invoke('storage:writeLocalProjects', projects),
     readLocalProjects: () => ipcRenderer.invoke('storage:readLocalProjects')

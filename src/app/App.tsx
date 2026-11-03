@@ -398,7 +398,7 @@ export default function App() {
 
     unsubs.push(
       mcp.onRequest('mcp:export-collection-schemas-request', async (payload) => {
-        const { generateValidationSchema, generateIndexExportPayload } = await import('./utils/mongoSchema');
+        const { generateValidationSchema, generateIndexExportPayload, sanitizeExportName } = await import('./utils/mongoSchema');
         const filter = Array.isArray(payload?.collections) ? (payload.collections as string[]) : null;
         const requested = filter ? new Set(filter) : null;
         const sourceFilePath = (currentProjectRef.current as ProjectDataWithSource | null)?.sourceFilePath || null;
@@ -428,8 +428,9 @@ export default function App() {
             writeSkipped.json_schemas = 'El proyecto activo no tiene sourceFilePath (.mdm), no se puede derivar la carpeta json_schemas';
           }
 
+          const safeProjectName = (currentProjectRef.current?.name || 'project').replace(/[^\w.-]+/g, '_');
+
           if (docsDir) {
-            const safeProjectName = (currentProjectRef.current?.name || 'project').replace(/[^\w.-]+/g, '_');
             const copyPath = `${docsDir.replace(/[/\\]+$/, '')}/${safeProjectName}/${model.name}.json`;
             try {
               const writeResult = await window.desktopApp?.writeTextFile?.(copyPath, fileContent);
@@ -443,6 +444,49 @@ export default function App() {
             }
           } else {
             writeSkipped.docs = 'Setting docsDir no configurado (Admin / Configuración)';
+          }
+
+          const indexExports = (model.indexes || []).map((index) => ({
+            name: index.name,
+            content: JSON.stringify(generateIndexExportPayload(model, index), null, 2)
+          }));
+          if (indexExports.length > 0) {
+            for (const { name: indexName, content: indexContent } of indexExports) {
+              const safeIndexName = sanitizeExportName(indexName);
+              const indexRelativePath = `indexes/${sanitizeExportName(model.name)}/${safeIndexName}.json`;
+
+              if (modelsDir) {
+                const indexPath = `${modelsDir}/${indexRelativePath}`;
+                try {
+                  const writeResult = await window.desktopApp?.writeTextFile?.(indexPath, indexContent);
+                  if (writeResult?.ok) {
+                    writtenTo.push(indexPath);
+                  } else {
+                    writeSkipped[indexPath] = writeResult?.error || 'No se pudo escribir el archivo';
+                  }
+                } catch (error) {
+                  writeSkipped[indexPath] = error instanceof Error ? error.message : String(error);
+                }
+              } else if (!writeSkipped.indexes) {
+                writeSkipped.indexes = 'El proyecto activo no tiene sourceFilePath (.mdm), no se puede derivar la carpeta indexes';
+              }
+
+              if (docsDir) {
+                const indexCopyPath = `${docsDir.replace(/[/\\]+$/, '')}/${safeProjectName}/${indexRelativePath}`;
+                try {
+                  const writeResult = await window.desktopApp?.writeTextFile?.(indexCopyPath, indexContent);
+                  if (writeResult?.ok) {
+                    writtenTo.push(indexCopyPath);
+                  } else {
+                    writeSkipped[indexCopyPath] = writeResult?.error || 'No se pudo escribir el archivo';
+                  }
+                } catch (error) {
+                  writeSkipped[indexCopyPath] = error instanceof Error ? error.message : String(error);
+                }
+              } else if (!writeSkipped.docs_indexes) {
+                writeSkipped.docs_indexes = 'Setting docsDir no configurado (Admin / Configuración)';
+              }
+            }
           }
 
           return {

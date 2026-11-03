@@ -12,6 +12,7 @@ import {
 } from '../utils/defaultCollectionFields';
 import { flattenModelFields } from '../utils/dataDictionary';
 import { getMongoTypeOptionLabel } from '../utils/mongoTypeLabels';
+import { normalizeAttributeName, findNonEnglishWords } from '../utils/attributeName';
 import { buildPhotoCollectionId } from '../utils/photoCollections';
 import { useAppLanguage } from '../i18n';
 
@@ -879,7 +880,7 @@ export default function DiagramStudio({
       return;
     }
 
-    const trimmedName = quickFieldDraft.name.trim();
+    const trimmedName = normalizeAttributeName(quickFieldDraft.name);
     if (!trimmedName) {
       return;
     }
@@ -924,6 +925,16 @@ export default function DiagramStudio({
       fields: appendFieldKeepingMetadataLast(selectedModel.fields, nextField)
     });
     setQuickFieldDraft(buildDefaultQuickFieldDraft());
+
+    void findNonEnglishWords(trimmedName).then((unknownWords) => {
+      if (unknownWords.length > 0) {
+        window.alert(
+          language === 'es'
+            ? `Revisa la escritura en inglés del campo "${trimmedName}". Palabras no reconocidas en el diccionario inglés: ${unknownWords.join(', ')}.`
+            : `Review the English spelling of field "${trimmedName}". Words not found in the English dictionary: ${unknownWords.join(', ')}.`
+        );
+      }
+    });
   };
 
   const handleUpdateField = (fieldIndex: number, updates: Partial<Field>) => {

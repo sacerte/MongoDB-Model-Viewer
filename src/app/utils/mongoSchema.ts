@@ -1,5 +1,28 @@
 import type { Field, Index, Model } from '../components/MongoModelBuilder';
 
+// Alias de etiquetas de tipo (las que muestra el diagrama/UI) a los tipos
+// canónicos del modelo. Evita que un tipo guardado como etiqueta (p. ej.
+// 'Decimal' en lugar de 'Decimal128') se exporte con el fallback 'string'.
+const CANONICAL_TYPE_ALIASES: Record<string, string> = {
+  Decimal: 'Decimal128',
+  decimal: 'Decimal128',
+  decimal128: 'Decimal128',
+  objectId: 'ObjectId',
+  binData: 'Buffer',
+  javascript: 'JavaScript',
+  javascriptWithScope: 'JavaScriptWithScope',
+  dbPointer: 'DbPointer',
+  minKey: 'MinKey',
+  maxKey: 'MaxKey',
+  timestamp: 'Timestamp',
+  regex: 'Regex',
+  undefined: 'Undefined'
+};
+
+export function normalizeMongoType(type: string): string {
+  return CANONICAL_TYPE_ALIASES[type] || type;
+}
+
 export function generateValidationSchema(model: Model) {
   return {
     $jsonSchema: buildObjectSchema(model.fields, model.name, model.name, {
@@ -53,16 +76,16 @@ function buildObjectSchema(
 function buildFieldSchema(modelName: string, fieldPath: string, field: Field): Record<string, unknown> {
   const schema: Record<string, unknown> = {};
   const isArrayField = Boolean((field as any).isArray) || field.type === 'Array';
-  const effectiveType = isArrayField ? field.arrayType || field.type : field.type;
+  const effectiveType = normalizeMongoType(isArrayField ? field.arrayType || field.type : field.type);
 
   if (!isArrayField && field.bsonTypes && field.bsonTypes.length > 0) {
     schema.bsonType = withNullableBsonType(
-      field.bsonTypes.map(mongoTypeToBsonType),
+      field.bsonTypes.map((type) => mongoTypeToBsonType(normalizeMongoType(type))),
       field
     );
     const scalarBsonTypes = field.bsonTypes
       .filter((type) => type !== 'Array' && type !== 'Null')
-      .map(mongoTypeToBsonType);
+      .map((type) => mongoTypeToBsonType(normalizeMongoType(type)));
     if (scalarBsonTypes.length > 0) {
       schema.items = { bsonType: scalarBsonTypes };
     }
@@ -335,6 +358,7 @@ function withNullableBsonType(bsonType: string | string[], field?: Field) {
 }
 
 function mongoTypeToBsonType(type: string): string {
+  const canonical = normalizeMongoType(type);
   const types: Record<string, string> = {
     String: 'string', Array: 'array', Number: 'number', Int: 'int', Double: 'double', Long: 'long',
     Boolean: 'bool', Date: 'date', Timestamp: 'timestamp', ObjectId: 'objectId',
@@ -342,5 +366,5 @@ function mongoTypeToBsonType(type: string): string {
     JavaScriptWithScope: 'javascriptWithScope', Regex: 'regex', Symbol: 'symbol',
     MinKey: 'minKey', MaxKey: 'maxKey', Decimal128: 'decimal', Null: 'null'
   };
-  return types[type] || 'string';
+  return types[canonical] || 'string';
 }

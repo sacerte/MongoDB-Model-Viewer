@@ -171,7 +171,7 @@ const TOOLS = [
   {
     name: 'export_collection_schemas',
     description:
-      'Exporta el jsonSchema (validación) y los índices de las colecciones del proyecto activo. Escribe cada jsonSchema en la carpeta json_schemas junto al .mdm del proyecto y una copia en {docsDir}/{nombre_proyecto}/ (docsDir configurable en Admin / Configuración). Devuelve por cada colección { collection, validation, indexes:[{name,type,definition}], writtenTo:[paths] } (y writeSkipped si alguna escritura se omitió). Con collections se filtra por nombres; sin él, devuelve todas.',
+      'Exporta el jsonSchema (validación) y los índices de las colecciones del proyecto activo. Escribe cada jsonSchema en la carpeta json_schemas junto al .mdm del proyecto y una copia en {docsDir}/{nombre_proyecto}/ (docsDir configurable en Admin / Configuración). Escribe también cada índice como archivo JSON en indexes/{coleccion}/{nombre_indice}.json junto al .mdm y una copia en {docsDir}/{nombre_proyecto}/indexes/{coleccion}/{nombre_indice}.json (formato [{definition}, {options}]). Devuelve por cada colección { collection, validation, indexes:[{name,type,definition}], writtenTo:[paths] } (y writeSkipped si alguna escritura se omitió). Con collections se filtra por nombres; sin él, devuelve todas.',
     inputSchema: {
       type: 'object',
       properties: {

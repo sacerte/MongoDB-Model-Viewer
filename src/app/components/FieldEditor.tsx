@@ -13,6 +13,7 @@ import {
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getMongoTypeOptionLabel } from '../utils/mongoTypeLabels';
+import { findNonEnglishWords, normalizeAttributeName } from '../utils/attributeName';
 import { useAppLanguage } from '../i18n';
 
 const MONGO_TYPES = [
@@ -236,7 +237,13 @@ export default function FieldEditor({
   }, [field.name]);
 
   const commitNameDraft = () => {
-    const nextName = nameDraft;
+    // Autocorrector: solo al nombrar un campo NUEVO (el nombre actual está vacío).
+    // Los campos existentes nunca se normalizan automáticamente.
+    const isNewField = !field.name;
+    const nextName = isNewField ? normalizeAttributeName(nameDraft) : nameDraft;
+    if (nextName !== nameDraft) {
+      setNameDraft(nextName);
+    }
     if (nextName === field.name) {
       return;
     }
@@ -250,6 +257,18 @@ export default function FieldEditor({
     }
 
     onUpdate({ name: nextName });
+
+    if (isNewField && nextName) {
+      void findNonEnglishWords(nextName).then((unknownWords) => {
+        if (unknownWords.length > 0) {
+          window.alert(
+            language === 'es'
+              ? `Revisa la escritura en inglés del campo "${nextName}". Palabras no reconocidas en el diccionario inglés: ${unknownWords.join(', ')}.`
+              : `Review the English spelling of field "${nextName}". Words not found in the English dictionary: ${unknownWords.join(', ')}.`
+          );
+        }
+      });
+    }
   };
 
   const handleUpdateNestedField = (nestedIndex: number, updates: Partial<Field>) => {

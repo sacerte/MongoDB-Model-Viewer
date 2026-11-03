@@ -1,7 +1,7 @@
 {
   "name": "mongodb-model-viewer",
   "private": true,
-  "version": "1.1.2",
+  "version": "1.1.3",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -29,7 +29,7 @@
     "desktop:dist:win": "npm run build && npm exec electron-builder -- --win portable --x64",
     "desktop:dist:win:fast": "npm exec electron-builder -- --win portable --x64",
     "desktop:dist:win:installer": "npm run build && npm exec electron-builder -- --win nsis --x64",
-    "desktop:dist:win:installer:deepin": "PATH=\"/opt/deepin-wine11-stable/bin:$PATH\" npm run build && PATH=\"/opt/deepin-wine11-stable/bin:$PATH\" npm exec electron-builder -- --win nsis --x64",
+    "desktop:dist:win:installer:deepin": "WINEPREFIX=\"${WINEPREFIX:-$HOME/.cache/mongodb-model-viewer-wine-prefix}\" WINEARCH=win64 npm run build && WINEPREFIX=\"${WINEPREFIX:-$HOME/.cache/mongodb-model-viewer-wine-prefix}\" WINEARCH=win64 npm exec electron-builder -- --win nsis --x64",
     "desktop:dist:win:installer:fast": "npm exec electron-builder -- --win nsis --x64",
     "desktop:dist:win:installer:clean": "npm run desktop:clean && npm run build && npm exec electron-builder -- --win nsis --x64 --publish never",
     "desktop:dist:linux": "npm run build && ./node_modules/.bin/electron-builder --linux AppImage deb pacman --arm64 --x64",
@@ -186,7 +186,18 @@
         "pacman"
       ],
       "category": "Development",
-      "syncDesktopName": true
+      "syncDesktopName": true,
+      "fileAssociations": [
+        {
+          "ext": "mdm",
+          "name": "MongoDB Model File",
+          "description": "MongoDB model project file",
+          "role": "Editor"
+        }
+      ],
+      "mimeTypes": [
+        "application/x-mdm"
+      ]
     },
     "mac": {
       "icon": "icon.icns",
@@ -195,6 +206,9 @@
         "zip"
       ],
       "category": "public.app-category.developer-tools"
+    },
+    "deb": {
+      "afterInstall": "packaging/deb/after-install.sh"
     }
   },
   "pnpm": {

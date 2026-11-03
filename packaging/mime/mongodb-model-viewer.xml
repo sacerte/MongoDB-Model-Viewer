@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-mdm">
+    <comment>MongoDB Modeler Project</comment>
+    <comment xml:lang="es">Proyecto de MongoDBModeler</comment>
+    <acronym>MDM</acronym>
+    <expanded-acronym>MongoDB Model</expanded-acronym>
+    <glob pattern="*.mdm"/>
+  </mime-type>
+</mime-info>

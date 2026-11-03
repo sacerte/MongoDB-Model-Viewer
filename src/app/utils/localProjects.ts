@@ -3,6 +3,9 @@ import type { ProjectData } from './projectBundle';
 const LEGACY_STORAGE_KEY = 'mongodb-designer-projects';
 const DB_NAME = 'mongodb-model-viewer-db';
 const STORE = 'projects';
+// En la versión desktop no se mantiene histórico de proyectos guardados:
+// el proyecto de trabajo siempre es el que se abre directamente desde el archivo .mdm.
+const IS_DESKTOP = typeof window !== 'undefined' && Boolean(window.desktopApp);
 
 declare global {
   interface Window {
@@ -95,7 +98,28 @@ async function migrateLegacyIfNeeded() {
   }
 }
 
+async function clearLocalProjectsStore(): Promise<void> {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      const req = tx.objectStore(STORE).clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error clearing local projects:', error);
+  }
+}
+
 export async function loadLocalProjects(): Promise<ProjectData[]> {
+  if (IS_DESKTOP) {
+    // Desktop: sin histórico de proyectos guardados. Se limpia cualquier
+    // histórico previo y se devuelve siempre vacío.
+    void clearLocalProjectsStore();
+    return [];
+  }
   try {
     await migrateLegacyIfNeeded();
     const db = await openDb();
@@ -114,6 +138,10 @@ export async function loadLocalProjects(): Promise<ProjectData[]> {
 }
 
 export async function saveLocalProjects(projects: ProjectData[]): Promise<boolean> {
+  if (IS_DESKTOP) {
+    // Desktop: no se persiste el histórico de proyectos.
+    return true;
+  }
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {

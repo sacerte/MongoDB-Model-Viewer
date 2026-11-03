@@ -105,6 +105,22 @@ npm run desktop:dist:win:installer
 
 El resultado principal se crea en `release/` con extensión `.exe`.
 
+Para crear ese instalador desde Linux, instala Wine con soporte de 32 bits una sola vez:
+
+```bash
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install --no-install-recommends wine wine64 wine32:i386
+```
+
+Después de instalar las dependencias del proyecto con `npm ci`, ejecuta:
+
+```bash
+npm run desktop:dist:win:installer:deepin
+```
+
+El script compila la aplicación y genera el instalador NSIS x64 en `release/`. Usa un prefijo Wine persistente en `~/.cache/mongodb-model-viewer-wine-prefix`; puedes elegir otro definiendo `WINEPREFIX` antes de ejecutar el comando.
+
 ### Linux (x64 y ARM64)
 
 Para generar AppImage y paquetes Debian para ambas arquitecturas:
